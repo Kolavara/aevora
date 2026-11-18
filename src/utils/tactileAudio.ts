@@ -74,7 +74,7 @@ export function playSwitchSnap(enabled: boolean, isOn: boolean): void {
 }
 
 /**
- * Dual-tone local wake-word acoustic chime
+ * Dual-tone local wake-word acoustic chime (ascending: listen start)
  */
 export function playWakeChime(enabled: boolean): void {
   if (!enabled) return;
@@ -83,6 +83,35 @@ export function playWakeChime(enabled: boolean): void {
   try {
     const now = ctx.currentTime;
     [660, 990].forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const t = now + idx * 0.07;
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, t);
+      gain.gain.setValueAtTime(0.001, t);
+      gain.gain.linearRampToValueAtTime(0.06, t + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.17);
+    });
+  } catch {
+    // Ignore audio context restrictions
+  }
+}
+
+/**
+ * Reversed dual-tone chime (descending: listen end)
+ * Mirrors playWakeChime — plays 990 Hz → 660 Hz for a natural "done" cue.
+ */
+export function playWakeChimeReverse(enabled: boolean): void {
+  if (!enabled) return;
+  const ctx = getAudioContext();
+  if (!ctx) return;
+  try {
+    const now = ctx.currentTime;
+    [990, 660].forEach((freq, idx) => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       const t = now + idx * 0.07;

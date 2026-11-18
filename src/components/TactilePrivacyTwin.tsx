@@ -24,7 +24,7 @@ import {
   type LvglMode,
   type RingAccent,
 } from '../utils/aevoraEngine';
-import { playDetentClick, playSwitchSnap, playWakeChime } from '../utils/tactileAudio';
+import { playDetentClick, playSwitchSnap, playWakeChime, playWakeChimeReverse } from '../utils/tactileAudio';
 import { MagneticButton } from './MagneticButton';
 
 interface TactilePrivacyTwinProps {
@@ -126,6 +126,7 @@ export const TactilePrivacyTwin: React.FC<TactilePrivacyTwinProps> = ({
     onChange({ ...hardwareState, lvglMode: 'listening' });
 
     wakeTimerRef.current = window.setTimeout(() => {
+      playWakeChimeReverse(soundEnabled);
       onChange({ ...hardwareState, lvglMode: 'inference' });
       setWakeTestStatus('answered');
     }, 1100);
