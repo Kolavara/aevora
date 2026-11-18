@@ -1,0 +1,6 @@
+{
+  "name": "AEVORA — Autonomous Edge AI Desk Companion",
+  "description": "Autonomous, privacy-first Edge AI desktop hardware companion powered by NVIDIA Jetson Orin Nano, XIAO RP2040, physical privacy kill switches, and local LLMs.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
