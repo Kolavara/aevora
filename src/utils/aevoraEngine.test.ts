@@ -5,11 +5,12 @@ import {
   computeAmbientBloom,
   computeContinuousDialAngle,
   computeExplodedLayerPositions,
-  computeInspectionFocus,
+  estimateStorageCapacity,
   estimateTelemetry,
   evaluateExecutionReadiness,
   getLvglDialAngle,
   stepLvglMode,
+  synthesizeCustomHidPlan,
   validateReservationForm,
   type HardwareState,
 } from './aevoraEngine';
@@ -36,7 +37,23 @@ test('calculateBuildSummary computes unit and quantity totals accurately', () =>
   assert.equal(summary.storageLabel, '1 TB Samsung 970 EVO Plus NVMe');
 });
 
-test('estimateTelemetry enforces physical SPST mic kill and DPDT isolation states', () => {
+test('estimateStorageCapacity computes realistic quantized LLM headroom across NVMe tiers', () => {
+  const base512 = estimateStorageCapacity('512gb', 'qwen-coder');
+  const max2tb = estimateStorageCapacity('2tb', 'voice-suite');
+
+  assert.equal(base512.totalGb, 512);
+  assert.ok(base512.availableGb > 400 && base512.availableGb < 512);
+  assert.ok(base512.approx7bModels >= 70);
+
+  assert.equal(max2tb.totalGb, 2000);
+  assert.ok(max2tb.approx7bModels > base512.approx7bModels * 3);
+  assert.match(max2tb.summaryLine, /GB free/);
+});
+
+test('estimateTelemetry enforces physical SPST mic kill, DPDT isolation, and acoustic dBA curve', () => {
+  const inference = estimateTelemetry(baseState);
+  assert.equal(inference.noiseFloorDba, 21.6);
+
   const micKilled = estimateTelemetry({
     ...baseState,
     micEnabled: false,
@@ -44,6 +61,7 @@ test('estimateTelemetry enforces physical SPST mic kill and DPDT isolation state
   });
   assert.equal(micKilled.gpuLoadPct, 3);
   assert.equal(micKilled.powerDrawWatts, 4.4);
+  assert.equal(micKilled.noiseFloorDba, 16.8);
 
   const hidIsolated = estimateTelemetry({
     ...baseState,
@@ -51,6 +69,7 @@ test('estimateTelemetry enforces physical SPST mic kill and DPDT isolation state
     lvglMode: 'hid',
   });
   assert.equal(hidIsolated.tokensPerSec, 0);
+  assert.equal(hidIsolated.noiseFloorDba, 17.4);
 });
 
 test('evaluateExecutionReadiness blocks workflows when physical switches disconnect lines', () => {
@@ -73,6 +92,22 @@ test('evaluateExecutionReadiness blocks workflows when physical switches disconn
   assert.equal(ready.blockedReason, null);
 });
 
+test('synthesizeCustomHidPlan generates OS-accurate USB HID keycodes and Android peer intents', () => {
+  const macPlan = synthesizeCustomHidPlan('Run pytest on checkout module', 'macos');
+  assert.equal(macPlan.requiresMic, true);
+  assert.equal(macPlan.requiresHid, true);
+  assert.match(macPlan.hidTranscript, /HID_MOD_LGUI \+ KEY_SPACE/);
+  assert.match(macPlan.hidTranscript, /Run pytest on checkout module/);
+  assert.equal(macPlan.steps.length, 4);
+
+  const winPlan = synthesizeCustomHidPlan('Format invoice sheet', 'windows');
+  assert.match(winPlan.hidTranscript, /HID_MOD_LGUI \+ KEY_R/);
+
+  const androidPlan = synthesizeCustomHidPlan('Draft reply to Alex', 'android');
+  assert.equal(androidPlan.requiresHid, false);
+  assert.match(androidPlan.hidTranscript, /ADB_LOCAL_BRIDGE/);
+});
+
 test('validateReservationForm rejects malformed inputs and accepts valid submissions', () => {
   const invalid = validateReservationForm({
     fullName: 'A',
@@ -85,29 +120,12 @@ test('validateReservationForm rejects malformed inputs and accepts valid submiss
   assert.ok(invalid.errors.region);
 
   const valid = validateReservationForm({
-    fullName: 'Aryan Gurudath',
-    email: 'aryan@example.com',
+    fullName: 'Alex Rivera',
+    email: 'alex@example.com',
     region: 'North America',
   });
   assert.equal(valid.valid, true);
   assert.deepEqual(valid.errors, {});
-});
-
-test('computeInspectionFocus clamps pan translations safely when zoomed', () => {
-  assert.deepEqual(computeInspectionFocus(41, 48, false), {
-    scale: 1,
-    translateXPct: 0,
-    translateYPct: 0,
-  });
-
-  const topPin = computeInspectionFocus(10, 5, true);
-  assert.equal(topPin.scale, 1.42);
-  assert.equal(topPin.translateXPct, 14);
-  assert.equal(topPin.translateYPct, 18);
-
-  const bottomPin = computeInspectionFocus(85, 92, true);
-  assert.equal(bottomPin.translateXPct, -14);
-  assert.equal(bottomPin.translateYPct, -18);
 });
 
 test('getLvglDialAngle maps each LVGL system mode to its rotary index degree', () => {
@@ -135,11 +153,8 @@ test('computeAmbientBloom scales aura with workload and shifts color on hardware
 });
 
 test('computeContinuousDialAngle wraps smoothly clockwise and counter-clockwise without full rewind', () => {
-  // Thermal (288 deg) -> Standby (0 mod 360) steps +72 deg clockwise to 360, not -288 deg
   assert.equal(computeContinuousDialAngle(288, 'idle'), 360);
-  // Standby (360 deg) -> Thermal (288) steps -72 deg counter-clockwise to 288
   assert.equal(computeContinuousDialAngle(360, 'thermal'), 288);
-  // Inference (144) -> Standby (0) steps -144 deg shortest arc to 0
   assert.equal(computeContinuousDialAngle(144, 'idle'), 0);
 });
 
@@ -153,22 +168,18 @@ test('computeExplodedLayerPositions enforces 1:1 95mm stack fit and exact Noctua
   assert.ok(assembled.coprocessor.yOffset > assembled.acoustic.yOffset);
   assert.ok(assembled.acoustic.yOffset > assembled.battery.yOffset);
 
-  // Total 0% height: crownTop (+0.098) - baseBottom (-0.142) = 1.982 units (~94.8 mm ≈ 95 mm target)
-  const totalHeight = (assembled.display.yOffset + 0.098) - (assembled.battery.yOffset - 0.142);
+  const totalHeight = assembled.display.yOffset + 0.098 - (assembled.battery.yOffset - 0.142);
   assert.ok(totalHeight >= 1.95 && totalHeight <= 2.02);
 
-  // Fan 40mm height (±0.418) must fit vertically inside open bay between switches bottom (+0.505) & acoustic top (-0.345)
   const switchesBottom = assembled.switches.yOffset - 0.12;
   const acousticTop = assembled.acoustic.yOffset + 0.145;
   assert.ok(assembled.fan.yOffset + 0.418 <= switchesBottom);
   assert.ok(assembled.fan.yOffset - 0.418 >= acousticTop);
 
-  // Outer fan corner (radial = rFan + 0.1045, halfWidth = 0.418) must stay inside R = 1.045 cylinder
   const fanRadial = Math.hypot(assembled.fan.xOffset, assembled.fan.zOffset);
   const outerCornerR = Math.hypot(fanRadial + 0.1045, 0.418);
   assert.ok(outerCornerR <= 1.045, `Outer corner ${outerCornerR.toFixed(4)} exceeded cylinder R=1.045`);
 
-  // Red damper & acoustic bottom must stay cleanly above Waveshare UPS HAT top across 0%, 50%, 100% explode
   [0, 0.5, 1].forEach((e) => {
     const tf = computeExplodedLayerPositions(e, null);
     const damperBottom = tf.acoustic.yOffset - 0.137;
@@ -183,7 +194,3 @@ test('computeExplodedLayerPositions enforces 1:1 95mm stack fit and exact Noctua
   assert.ok(exploded.fan.selectedLift > 0);
   assert.ok(exploded.coprocessor.xOffset < 0);
 });
-
-
-
-

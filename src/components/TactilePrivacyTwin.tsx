@@ -845,8 +845,10 @@ export const TactilePrivacyTwin: React.FC<TactilePrivacyTwinProps> = ({
                 <div className="flex items-center gap-1.5 min-w-0">
                   <Fan className="h-3.5 w-3.5 text-zinc-600 shrink-0" aria-hidden="true" />
                   <div className="min-w-0">
-                    <div className="text-[11px] text-zinc-500 whitespace-nowrap">Fan PWM</div>
-                    <div className="font-semibold text-zinc-950 whitespace-nowrap">{telemetry.fanRpm} RPM</div>
+                    <div className="text-[11px] text-zinc-500 whitespace-nowrap">Fan · Noise</div>
+                    <div className="font-semibold text-zinc-950 whitespace-nowrap">
+                      {telemetry.fanRpm} RPM · {telemetry.noiseFloorDba} dBA
+                    </div>
                   </div>
                 </div>
                 <div className="min-w-0 text-right sm:text-left">

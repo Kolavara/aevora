@@ -6,7 +6,8 @@ import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUnifo
 import {
   ChevronDown,
   ChevronUp,
-  Layers,
+  Eye,
+  Focus,
   RotateCcw,
   Volume2,
   Wind,
@@ -15,9 +16,10 @@ import {
   computeExplodedLayerPositions,
   FAN_MOUNT_ANGLE,
   type ChassisFinish,
+  type LvglMode,
   type RingAccent,
 } from '../../utils/aevoraEngine';
-import { HARDWARE_LAYERS } from '../../data/hardwareLayers';
+import { HARDWARE_LAYERS, type SubsystemCategory } from '../../data/hardwareLayers';
 import { playDetentClick } from '../../utils/tactileAudio';
 import {
   createAevoraMaterialSet,
@@ -31,16 +33,20 @@ import {
 } from './aevoraAssemblyBuilder';
 
 export type CameraPresetId = 'iso' | 'top' | 'side';
-export type StageOverlayMode = 'pins' | 'thermal' | 'acoustic';
+export type StageOverlayMode = 'inspect' | 'isolate' | 'thermal' | 'acoustic';
 
 interface AevoraExplodedStageProps {
   selectedLayerId: string;
   onSelectLayer: (layerId: string) => void;
+  activeCategory: SubsystemCategory;
   overlayMode: StageOverlayMode;
   onChangeOverlayMode: (mode: StageOverlayMode) => void;
   finish: ChassisFinish;
   ringAccent: RingAccent;
+  lvglMode: LvglMode;
+  cordlessMode: boolean;
   fanRpm: number;
+  tokensPerSec: number;
   micEnabled: boolean;
   hidConnected: boolean;
   explodeAmount: number;
@@ -56,6 +62,10 @@ const CAMERA_PRESETS: Record<
   top: { label: 'Top IPS', pos: [0.01, 7.25, 1.75], targetY: 0.15 },
   side: { label: 'Elevation', pos: [6.85, 0.35, 0.72], targetY: -0.52 },
 };
+
+const LAYER_CATEGORY_MAP: Record<string, Exclude<SubsystemCategory, 'all'>> = Object.fromEntries(
+  HARDWARE_LAYERS.map((l) => [l.id, l.category])
+);
 
 // Module-level pre-allocated scratch math objects (zero GC in render loop)
 const _scratchObj = new THREE.Object3D();
@@ -73,11 +83,15 @@ const _camGoalTarget = new THREE.Vector3();
 export const AevoraExplodedStage: React.FC<AevoraExplodedStageProps> = ({
   selectedLayerId,
   onSelectLayer,
+  activeCategory,
   overlayMode,
   onChangeOverlayMode,
   finish,
   ringAccent,
+  lvglMode,
+  cordlessMode,
   fanRpm,
+  tokensPerSec,
   micEnabled,
   hidConnected,
   explodeAmount,
@@ -95,10 +109,14 @@ export const AevoraExplodedStage: React.FC<AevoraExplodedStageProps> = ({
   // Latest React props & callbacks stored in refs so WebGL mounts once
   const stateRef = useRef({
     selectedLayerId,
+    activeCategory,
     overlayMode,
     finish,
     ringAccent,
+    lvglMode,
+    cordlessMode,
     fanRpm,
+    tokensPerSec,
     micEnabled,
     hidConnected,
     explodeAmount,
@@ -106,10 +124,14 @@ export const AevoraExplodedStage: React.FC<AevoraExplodedStageProps> = ({
   });
   stateRef.current = {
     selectedLayerId,
+    activeCategory,
     overlayMode,
     finish,
     ringAccent,
+    lvglMode,
+    cordlessMode,
     fanRpm,
+    tokensPerSec,
     micEnabled,
     hidConnected,
     explodeAmount,
@@ -128,7 +150,7 @@ export const AevoraExplodedStage: React.FC<AevoraExplodedStageProps> = ({
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const requestWakeRef = useRef<() => void>(() => {});
 
-  // Apply dynamic material updates (finish, ring accent, audio/switch cues) cleanly without remounting WebGL
+  // Apply dynamic material updates (finish, ring accent) cleanly without remounting WebGL
   useEffect(() => {
     const mats = matSetRef.current;
     const renderer = rendererRef.current;
@@ -149,7 +171,10 @@ export const AevoraExplodedStage: React.FC<AevoraExplodedStageProps> = ({
     mats.lvglController.drawFrame({
       timeSec: 0,
       accent: ringAccent,
+      lvglMode: s.lvglMode,
+      cordlessMode: s.cordlessMode,
       fanRpm: s.fanRpm,
+      tokensPerSec: s.tokensPerSec,
       micEnabled: s.micEnabled,
       hidConnected: s.hidConnected,
     });
@@ -157,10 +182,22 @@ export const AevoraExplodedStage: React.FC<AevoraExplodedStageProps> = ({
     requestWakeRef.current();
   }, [finish, ringAccent]);
 
-  // Wake renderer whenever interactive layer/explode/overlay/RPM props change
+  // Wake renderer whenever interactive layer/category/explode/overlay/telemetry props change
   useEffect(() => {
     requestWakeRef.current();
-  }, [selectedLayerId, overlayMode, explodeAmount, fanRpm, micEnabled, hidConnected, autoRotate]);
+  }, [
+    selectedLayerId,
+    activeCategory,
+    overlayMode,
+    explodeAmount,
+    lvglMode,
+    cordlessMode,
+    fanRpm,
+    tokensPerSec,
+    micEnabled,
+    hidConnected,
+    autoRotate,
+  ]);
 
   // Core Three.js lifecycle (mounts once)
   useEffect(() => {
@@ -283,7 +320,7 @@ export const AevoraExplodedStage: React.FC<AevoraExplodedStageProps> = ({
     );
     matSetRef.current = matSet;
 
-    // Architectural studio calibration reticle ring above contact shadow disc (0.02 Y offset prevents Z-fighting)
+    // Architectural studio calibration reticle ring above contact shadow disc
     const reticleGeo = new THREE.CircleGeometry(2.55, 48);
     reticleGeo.rotateX(-Math.PI / 2);
     const reticleMesh = new THREE.Mesh(reticleGeo, matSet.floorReticle);
@@ -396,6 +433,7 @@ export const AevoraExplodedStage: React.FC<AevoraExplodedStageProps> = ({
     let currentHaloRotZ = stateRef.current.selectedLayerId === 'fan' ? Math.PI / 2 : 0;
     let currentSpstOffsetX = stateRef.current.micEnabled ? -0.205 : -0.265;
     let airflowClock = 0;
+    let acousticClock = 0;
     let hudClock = 0;
     let lastHudDrawSec = -1;
     let lastHudSig = '';
@@ -442,19 +480,26 @@ export const AevoraExplodedStage: React.FC<AevoraExplodedStageProps> = ({
         grp.position.x = THREE.MathUtils.damp(grp.position.x, tf.xOffset, 9.0, dt);
         grp.position.y = THREE.MathUtils.damp(grp.position.y, tf.yOffset, 9.0, dt);
         grp.position.z = THREE.MathUtils.damp(grp.position.z, tf.zOffset, 9.0, dt);
+
+        // Apply CAD X-Ray ghosting for Isolate mode or active subsystem category filter
+        const dimmedByIsolate = s.overlayMode === 'isolate' && id !== s.selectedLayerId;
+        const dimmedByCategory =
+          s.activeCategory !== 'all' && LAYER_CATEGORY_MAP[id] !== s.activeCategory;
+        assembly.setLayerDimmed(id, dimmedByIsolate || dimmedByCategory);
       });
 
-      // Keep Waveshare UPS HAT PCB cleanly between 21700 cells and bottom of acoustic red damper at every explode %
+      // Keep Waveshare UPS HAT PCB cleanly between 21700 cells and acoustic red damper
       assembly.upsSubGroup.position.y = 0.142 + currentExplode * 0.32;
 
-      // Sync 4 brass guide standoff rod span between underside of Top Cover (01) and Battery Base (09) floor
+      // Sync 4 brass guide standoff rod span between underside of Top Cover (01) and Battery Base (09)
       const topY = (assembly.layers.display?.position.y ?? targets.display.yOffset) - 0.035;
       const botY = (assembly.layers.battery?.position.y ?? targets.battery.yOffset) - 0.075;
       const span = Math.max(0.85, topY - botY);
       assembly.guideRods.position.y = (topY + botY) * 0.5;
       assembly.guideRods.scale.y = span;
+      assembly.guideRods.visible = s.overlayMode !== 'isolate';
 
-      // Smoothly dock Selection Halo horizontally on core layers (centered between battery & UPS board for Layer 09) or orthogonally on side Noctua fan
+      // Smoothly dock Selection Halo on active layer in Inspect or Isolate mode
       const selTf = targets[s.selectedLayerId] ?? targets.jetson;
       const isFanSelected = s.selectedLayerId === 'fan';
       const targetHaloY =
@@ -475,7 +520,8 @@ export const AevoraExplodedStage: React.FC<AevoraExplodedStageProps> = ({
         currentHaloRotZ
       );
       assembly.selectionHalo.scale.setScalar(isFanSelected ? 0.44 : 1.0);
-      assembly.selectionHalo.visible = s.overlayMode === 'pins';
+      assembly.selectionHalo.visible =
+        s.overlayMode === 'inspect' || s.overlayMode === 'isolate';
 
       // Spin vertical Noctua NF-A4x10 impeller proportional to fanRPM telemetry
       const rpmSpeed = Math.max(1.4, (s.fanRpm / 1450) * 4.2);
@@ -488,24 +534,38 @@ export const AevoraExplodedStage: React.FC<AevoraExplodedStageProps> = ({
       assembly.micMuteIndicator.material = s.micEnabled ? matSet.accentSwitch : matSet.redToggle;
       assembly.dpdtIndicator.material = s.hidConnected ? matSet.greenLed : matSet.heatsinkDark;
 
-      // Keep top 2.4" circular IPS LVGL display continuously alive (arc sweep, audio waveform, telemetry)
+      // Keep top 2.4" circular IPS LVGL display live-synced with Section 01 state
       hudClock += dt;
-      const hudSig = `${s.ringAccent}-${Math.round(s.fanRpm)}-${s.micEnabled}-${s.hidConnected}`;
+      const hudSig = `${s.ringAccent}-${s.lvglMode}-${s.cordlessMode}-${Math.round(s.fanRpm)}-${s.tokensPerSec}-${s.micEnabled}-${s.hidConnected}`;
       if (hudClock - lastHudDrawSec >= 0.08 || hudSig !== lastHudSig) {
         lastHudDrawSec = hudClock;
         lastHudSig = hudSig;
         matSet.lvglController.drawFrame({
           timeSec: hudClock,
           accent: s.ringAccent,
+          lvglMode: s.lvglMode,
+          cordlessMode: s.cordlessMode,
           fanRpm: s.fanRpm,
+          tokensPerSec: s.tokensPerSec,
           micEnabled: s.micEnabled,
           hidConnected: s.hidConnected,
         });
       }
 
-      // Thermal Airflow 4-stage CFD streamline darts vs Acoustic seal highlight
+      // Engineering overlays: Thermal Airflow CFD vs Acoustic Isolation Wavefronts
       assembly.airflowGroup.visible = s.overlayMode === 'thermal';
       assembly.acousticHighlightGroup.visible = s.overlayMode === 'acoustic';
+
+      if (s.overlayMode === 'acoustic') {
+        acousticClock += dt * 0.85;
+        assembly.acousticWaveRings.forEach((ring, idx) => {
+          const phase = (acousticClock + idx / assembly.acousticWaveRings.length) % 1;
+          ring.mesh.position.y = -0.10 - phase * 0.38;
+          const sc = 0.65 + phase * 0.95;
+          ring.mesh.scale.set(sc, 1, sc);
+          ring.mat.opacity = Math.sin(phase * Math.PI) * 0.72;
+        });
+      }
 
       if (s.overlayMode === 'thermal') {
         airflowClock += dt * 0.48;
@@ -521,7 +581,6 @@ export const AevoraExplodedStage: React.FC<AevoraExplodedStageProps> = ({
         const baseY = targets.battery.yOffset;
         const finTopY = targets.jetson.yOffset + 0.14;
 
-        // Pass cleanly between exhaust slats (-0.25, -0.15, -0.05, +0.05, +0.15, +0.25) inside r = 0.376 bore
         const routeSpecs = [
           { a: -1.12, zFin: -0.18, u: -0.16, v: -0.10 },
           { a: -0.32, zFin: -0.06, u: -0.08, v: 0.0 },
@@ -531,7 +590,6 @@ export const AevoraExplodedStage: React.FC<AevoraExplodedStageProps> = ({
           { a: 3.66, zFin: 0.08, u: 0.10, v: -0.20 },
         ];
 
-        // Keep 7-point airflow splines locked strictly inside open base slots, annular moat, heatsink channels & fan bore
         assembly.airflowRoutes.forEach((route, idx) => {
           const spec = routeSpecs[idx % routeSpecs.length];
           const sx = Math.sin(spec.a);
@@ -580,7 +638,6 @@ export const AevoraExplodedStage: React.FC<AevoraExplodedStageProps> = ({
           _scratchObj.updateMatrix();
           assembly.airflowParticles.setMatrixAt(i, _scratchObj.matrix);
 
-          // Color transition: Cool Cyan Base Intake -> Upward Blue -> Warm/Hot Orange Exhaust
           if (t < 0.45) {
             _tmpColor.copy(_coolColor);
           } else if (t < 0.72) {
@@ -629,11 +686,7 @@ export const AevoraExplodedStage: React.FC<AevoraExplodedStageProps> = ({
     const scheduleNext = () => {
       if (disposed || renderScheduled || !isVisible) return;
       renderScheduled = true;
-      if (isSoftwareGl) {
-        frameId = requestAnimationFrame(tick);
-      } else {
-        frameId = requestAnimationFrame(tick);
-      }
+      frameId = requestAnimationFrame(tick);
     };
 
     const tick = () => {
@@ -648,7 +701,6 @@ export const AevoraExplodedStage: React.FC<AevoraExplodedStageProps> = ({
       renderer.render(scene, camera);
 
       if (isSoftwareGl) {
-        // Software-WebGL keeps paced afterDraw loop cleanly without main-thread starvation
         afterDraw(() => {
           if (!disposed && isVisible) {
             renderScheduled = true;
@@ -715,24 +767,30 @@ export const AevoraExplodedStage: React.FC<AevoraExplodedStageProps> = ({
     ? HARDWARE_LAYERS.find((l) => l.id === hoveredLayerId)
     : null;
 
+  const isAssembled = explodeAmount < 0.08;
+
   return (
     <div
       ref={containerRef}
       data-testid="aevora-3d-stage"
       data-selected-layer={selectedLayerId}
+      data-overlay={overlayMode}
+      data-category={activeCategory}
+      data-mic={String(micEnabled)}
+      data-mode={lvglMode}
       data-explode={explodeAmount.toFixed(2)}
-      className="relative h-[490px] sm:h-[540px] lg:h-full lg:min-h-[580px] w-full overflow-hidden rounded-2xl bg-[#13151a] border border-zinc-900/15 select-none"
+      className="relative h-[500px] sm:h-[560px] lg:h-full lg:min-h-[610px] w-full overflow-hidden rounded-2xl bg-[#13151a] border border-white/10 select-none"
     >
-      {/* Isolated WebGL Mount Container (never touched by React re-renders) */}
+      {/* Isolated WebGL Mount Container */}
       <div ref={mountRef} className="h-full w-full" aria-label="Interactive 3D exploded CAD assembly of AEVORA" />
 
-      {/* Minimal Unobtrusive Top Spec Readout */}
+      {/* Minimal Top Spec Readout */}
       <div className="pointer-events-none absolute top-3.5 left-4 right-4 flex items-start justify-between gap-3">
-        <div className="rounded-lg bg-[#13151a]/88 px-3 py-2 border border-white/10">
+        <div className="rounded-lg bg-[#13151a]/90 px-3 py-2 border border-white/10">
           <div className="font-mono text-[10px] tracking-wide text-zinc-400">
             {hoveredLayerMeta
-              ? `CLICK TO INSPECT · LAYER ${hoveredLayerMeta.index}`
-              : `ACTIVE · LAYER ${activeLayerMeta.index}`}
+              ? `Click to inspect · Layer ${hoveredLayerMeta.index}`
+              : `Active · Layer ${activeLayerMeta.index}`}
           </div>
           <div className="mt-0.5 text-xs font-semibold text-white">
             {(hoveredLayerMeta ?? activeLayerMeta).name}
@@ -749,7 +807,7 @@ export const AevoraExplodedStage: React.FC<AevoraExplodedStageProps> = ({
           className={`pointer-events-auto inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-medium whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
             autoRotate
               ? 'border-[#ff5500] bg-[#ff5500] text-white'
-              : 'border-white/15 bg-[#13151a]/88 text-zinc-200 hover:bg-zinc-900'
+              : 'border-white/15 bg-[#13151a]/90 text-zinc-200 hover:bg-zinc-900'
           }`}
         >
           <RotateCcw className="h-3 w-3" aria-hidden="true" />
@@ -763,7 +821,7 @@ export const AevoraExplodedStage: React.FC<AevoraExplodedStageProps> = ({
           type="button"
           onClick={() => setDockCollapsed((c) => !c)}
           aria-expanded={!dockCollapsed}
-          className="pointer-events-auto mb-1 inline-flex items-center gap-1 rounded-t-lg rounded-b-sm border border-white/12 bg-[#16181e]/92 px-2.5 py-1 font-mono text-[10px] text-zinc-300 hover:text-white cursor-pointer"
+          className="pointer-events-auto mb-1 inline-flex items-center gap-1 rounded-t-lg rounded-b-sm border border-white/12 bg-[#16181e]/94 px-2.5 py-1 font-mono text-[10px] text-zinc-300 hover:text-white cursor-pointer"
         >
           {dockCollapsed ? (
             <>
@@ -779,11 +837,43 @@ export const AevoraExplodedStage: React.FC<AevoraExplodedStageProps> = ({
         </button>
 
         {!dockCollapsed && (
-          <div className="pointer-events-auto flex w-full max-w-[540px] flex-col gap-2 rounded-xl border border-white/12 bg-[#16181e]/94 p-2.5 sm:p-3 text-white shadow-xl">
-            {/* Explode Separation Slider + Camera Presets */}
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <label className="flex min-w-[165px] flex-1 items-center gap-2.5 text-[11px] font-mono text-zinc-300">
-                <span className="shrink-0">Explode</span>
+          <div className="pointer-events-auto flex w-full max-w-[580px] flex-col gap-2 rounded-xl border border-white/12 bg-[#16181e]/95 p-2.5 sm:p-3 text-white shadow-xl">
+            {/* Row 1: Explode Snap + Slider + Camera Presets */}
+            <div className="flex flex-wrap items-center justify-between gap-2.5">
+              <div className="flex items-center gap-1 rounded-lg bg-black/35 p-0.5 border border-white/8 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    playDetentClick(soundEnabled, 880);
+                    onChangeExplodeAmount(0);
+                  }}
+                  aria-pressed={isAssembled}
+                  className={`rounded-md px-2 py-1 text-[11px] font-medium transition-colors whitespace-nowrap cursor-pointer ${
+                    isAssembled
+                      ? 'bg-white text-zinc-950'
+                      : 'text-zinc-300 hover:text-white'
+                  }`}
+                >
+                  Assembled
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    playDetentClick(soundEnabled, 1140);
+                    onChangeExplodeAmount(0.8);
+                  }}
+                  aria-pressed={!isAssembled}
+                  className={`rounded-md px-2 py-1 text-[11px] font-medium transition-colors whitespace-nowrap cursor-pointer ${
+                    !isAssembled
+                      ? 'bg-white text-zinc-950'
+                      : 'text-zinc-300 hover:text-white'
+                  }`}
+                >
+                  Exploded
+                </button>
+              </div>
+
+              <label className="flex min-w-[125px] flex-1 items-center gap-2 text-[11px] font-mono text-zinc-300">
                 <input
                   type="range"
                   min={0}
@@ -798,7 +888,7 @@ export const AevoraExplodedStage: React.FC<AevoraExplodedStageProps> = ({
                 </span>
               </label>
 
-              <div className="flex items-center gap-1 rounded-lg bg-black/35 p-0.5 border border-white/8">
+              <div className="flex items-center gap-1 rounded-lg bg-black/35 p-0.5 border border-white/8 shrink-0">
                 {(Object.keys(CAMERA_PRESETS) as CameraPresetId[]).map((pid) => (
                   <button
                     key={pid}
@@ -817,41 +907,57 @@ export const AevoraExplodedStage: React.FC<AevoraExplodedStageProps> = ({
               </div>
             </div>
 
-            {/* Subsystem Inspection Overlay Switcher */}
+            {/* Row 2: Clear Engineering Inspection Overlays */}
             <div className="flex items-center justify-between gap-2 border-t border-white/8 pt-2">
-              <div className="flex flex-wrap items-center gap-1">
+              <div className="flex flex-wrap items-center gap-1" role="group" aria-label="3D inspection overlays">
                 <button
                   type="button"
                   onClick={() => {
-                    playDetentClick(soundEnabled, 1040);
-                    onChangeOverlayMode('pins');
+                    playDetentClick(soundEnabled, 1020);
+                    onChangeOverlayMode('inspect');
                   }}
-                  aria-pressed={overlayMode === 'pins'}
-                  className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-medium transition-colors cursor-pointer ${
-                    overlayMode === 'pins'
+                  aria-pressed={overlayMode === 'inspect'}
+                  className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                    overlayMode === 'inspect'
                       ? 'bg-white text-zinc-950'
                       : 'text-zinc-300 hover:bg-white/8 hover:text-white'
                   }`}
                 >
-                  <Layers className="h-3 w-3" aria-hidden="true" />
-                  <span>Subsystem Ring</span>
+                  <Eye className="h-3 w-3" aria-hidden="true" />
+                  <span>Inspect</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => {
-                    playDetentClick(soundEnabled, 1120);
+                    playDetentClick(soundEnabled, 1100);
+                    onChangeOverlayMode('isolate');
+                  }}
+                  aria-pressed={overlayMode === 'isolate'}
+                  className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                    overlayMode === 'isolate'
+                      ? 'bg-white text-zinc-950'
+                      : 'text-zinc-300 hover:bg-white/8 hover:text-white'
+                  }`}
+                >
+                  <Focus className="h-3 w-3" aria-hidden="true" />
+                  <span>Isolate X-Ray</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    playDetentClick(soundEnabled, 1160);
                     onChangeOverlayMode('thermal');
                     onSelectLayer('fan');
                   }}
                   aria-pressed={overlayMode === 'thermal'}
-                  className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-medium transition-colors cursor-pointer ${
+                  className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                     overlayMode === 'thermal'
                       ? 'bg-[#ff5500] text-white'
                       : 'text-zinc-300 hover:bg-white/8 hover:text-white'
                   }`}
                 >
                   <Wind className="h-3 w-3" aria-hidden="true" />
-                  <span>Airflow</span>
+                  <span>Airflow CFD</span>
                 </button>
                 <button
                   type="button"
@@ -861,9 +967,9 @@ export const AevoraExplodedStage: React.FC<AevoraExplodedStageProps> = ({
                     onSelectLayer('acoustic');
                   }}
                   aria-pressed={overlayMode === 'acoustic'}
-                  className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-medium transition-colors cursor-pointer ${
+                  className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                     overlayMode === 'acoustic'
-                      ? 'bg-white text-zinc-950'
+                      ? 'bg-sky-500 text-zinc-950'
                       : 'text-zinc-300 hover:bg-white/8 hover:text-white'
                   }`}
                 >
@@ -871,10 +977,6 @@ export const AevoraExplodedStage: React.FC<AevoraExplodedStageProps> = ({
                   <span>Acoustic Seal</span>
                 </button>
               </div>
-
-              <span className="hidden sm:inline font-mono text-[10px] text-zinc-400">
-                Drag to orbit · Click part
-              </span>
             </div>
           </div>
         )}

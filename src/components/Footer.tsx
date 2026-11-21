@@ -41,6 +41,13 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
           </button>
           <button
             type="button"
+            onClick={() => onNavigate('specs')}
+            className="hover:text-zinc-950 cursor-pointer"
+          >
+            Specs
+          </button>
+          <button
+            type="button"
             onClick={() => onNavigate('reserve')}
             className="hover:text-zinc-950 cursor-pointer"
           >

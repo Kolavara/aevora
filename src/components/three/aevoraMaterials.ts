@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { ChassisFinish, RingAccent } from '../../utils/aevoraEngine';
+import type { ChassisFinish, LvglMode, RingAccent } from '../../utils/aevoraEngine';
 
 export function detectSoftwareWebGl(): boolean {
   try {
@@ -260,12 +260,23 @@ export interface LvglHudCanvasController {
   drawFrame: (opts: {
     timeSec: number;
     accent: RingAccent;
+    lvglMode: LvglMode;
+    cordlessMode: boolean;
     fanRpm: number;
+    tokensPerSec: number;
     micEnabled: boolean;
     hidConnected: boolean;
   }) => void;
   dispose: () => void;
 }
+
+const MODE_DISPLAY_LABELS: Record<LvglMode, string> = {
+  idle: 'STANDBY · QUIET',
+  listening: 'LISTENING · LOCAL',
+  inference: 'INFERENCE · LOCAL',
+  hid: 'HID TYPING · USB',
+  thermal: 'THERMAL · PEAK',
+};
 
 export function createLiveLvglController(
   initialAccent: RingAccent,
@@ -283,18 +294,28 @@ export function createLiveLvglController(
   const drawFrame: LvglHudCanvasController['drawFrame'] = ({
     timeSec,
     accent,
+    lvglMode,
+    cordlessMode,
     fanRpm,
+    tokensPerSec,
     micEnabled,
     hidConnected,
   }) => {
-    const accentHex = accent === 'amber' ? '#ff6200' : '#0ea5e9';
-    const accentGlow = accent === 'amber' ? 'rgba(255, 92, 0, 0.22)' : 'rgba(14, 165, 233, 0.24)';
+    const micBlocked = !micEnabled && lvglMode === 'listening';
+    const hidBlocked = !hidConnected && lvglMode === 'hid';
+    const isBlocked = micBlocked || hidBlocked;
+    const accentHex = isBlocked ? '#ef4444' : accent === 'amber' ? '#ff6200' : '#0ea5e9';
+    const accentGlow = isBlocked
+      ? 'rgba(239, 68, 68, 0.24)'
+      : accent === 'amber'
+      ? 'rgba(255, 92, 0, 0.22)'
+      : 'rgba(14, 165, 233, 0.24)';
 
-    // Pure diode-off #000000 OLED black substrate (infinite contrast, zero IPS backlight grey haze)
+    // Pure diode-off #000000 OLED black substrate
     ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, 512, 512);
 
-    // Tight localized self-lit bloom strictly under waveform center, fading smoothly to pure black
+    // Tight localized self-lit bloom strictly under waveform center
     const grad = ctx.createRadialGradient(256, 266, 8, 256, 266, 118);
     grad.addColorStop(0, accentGlow);
     grad.addColorStop(0.6, accent === 'amber' ? 'rgba(255, 92, 0, 0.05)' : 'rgba(14, 165, 233, 0.05)');
@@ -321,30 +342,38 @@ export function createLiveLvglController(
     ctx.arc(256, 256, 224, 0, Math.PI * 2);
     ctx.stroke();
 
-    // Header Wordmark
+    // Header Wordmark & Live Power Rail
     ctx.textAlign = 'center';
     ctx.fillStyle = '#a1a1aa';
     ctx.font = '600 15px monospace';
-    ctx.fillText('USB-C · 5V/3A', 256, 134);
+    ctx.fillText(cordlessMode ? 'UPS · 2S BATT' : 'USB-C · 5V/3A', 256, 134);
 
     ctx.fillStyle = '#ffffff';
     ctx.font = '700 42px sans-serif';
     ctx.fillText('Aevora', 256, 182);
 
-    ctx.fillStyle = '#e4e4e7';
+    ctx.fillStyle = isBlocked ? '#fca5a5' : '#e4e4e7';
     ctx.font = '600 16px monospace';
-    ctx.fillText(micEnabled ? 'INFERENCE · LOCAL' : 'MIC HARD-CUT', 256, 214);
+    const modeHeadline = micBlocked
+      ? 'MIC HARD-CUT'
+      : hidBlocked
+      ? 'USB AIR-GAPPED'
+      : !micEnabled
+      ? 'MIC OPEN · LOCAL'
+      : MODE_DISPLAY_LABELS[lvglMode];
+    ctx.fillText(modeHeadline, 256, 214);
 
-    // Alive in-place OLED audio waveform bars (stationary positions, gentle amplitude modulation)
+    // Alive in-place OLED audio waveform bars
+    const waveActive = micEnabled && lvglMode !== 'idle' && !isBlocked;
     const barCount = 11;
     for (let i = 0; i < barCount; i += 1) {
       const distCenter = 1 - Math.abs(i - 5) / 6;
-      const wave = micEnabled
+      const wave = waveActive
         ? 0.28 + distCenter * (0.42 + 0.30 * Math.sin(timeSec * 4.4 + i * 0.9))
         : 0.14;
       const bh = Math.max(8, wave * 58);
       const bx = 256 + (i - 5) * 18 - 4;
-      ctx.fillStyle = micEnabled ? accentHex : '#ef4444';
+      ctx.fillStyle = !micEnabled ? '#ef4444' : accentHex;
       ctx.beginPath();
       ctx.roundRect(bx, 272 - bh / 2, 8, bh, 4);
       ctx.fill();
@@ -353,7 +382,8 @@ export function createLiveLvglController(
     // Live hardware telemetry stats synced directly with Section 01 state
     ctx.fillStyle = '#f4f4f5';
     ctx.font = '600 18px monospace';
-    ctx.fillText(`FAN ${Math.round(fanRpm)} RPM · 34.6 TPS`, 256, 338);
+    const tpsText = tokensPerSec > 0 ? tokensPerSec.toFixed(1) : '0.0';
+    ctx.fillText(`FAN ${Math.round(fanRpm)} RPM · ${tpsText} TPS`, 256, 338);
 
     // Status labels — HID ON rendered in blue (#38bdf8) independently of MIC kill state
     ctx.font = '700 16px monospace';
@@ -385,7 +415,10 @@ export function createLiveLvglController(
   drawFrame({
     timeSec: 0,
     accent: initialAccent,
+    lvglMode: 'inference',
+    cordlessMode: false,
     fanRpm: 3800,
+    tokensPerSec: 34.6,
     micEnabled: true,
     hidConnected: true,
   });
@@ -447,6 +480,7 @@ export interface AevoraMaterialSet {
   redToggle: THREE.MeshStandardMaterial;
   greenLed: THREE.MeshStandardMaterial;
   chromeSteel: THREE.MeshStandardMaterial;
+  ghostShell: THREE.MeshStandardMaterial;
   dispose: () => void;
 }
 
@@ -698,6 +732,15 @@ export function createAevoraMaterialSet(
     roughness: 0.11,
   });
 
+  const ghostShell = new THREE.MeshStandardMaterial({
+    color: 0x64748b,
+    metalness: 0.18,
+    roughness: 0.55,
+    transparent: true,
+    opacity: 0.15,
+    depthWrite: false,
+  });
+
   const textures = [
     brushedBump,
     pcbDarkTex,
@@ -740,6 +783,7 @@ export function createAevoraMaterialSet(
     redToggle,
     greenLed,
     chromeSteel,
+    ghostShell,
   ];
 
   return {
@@ -774,6 +818,7 @@ export function createAevoraMaterialSet(
     redToggle,
     greenLed,
     chromeSteel,
+    ghostShell,
     dispose: () => {
       textures.forEach((t) => t.dispose());
       lvglController.dispose();

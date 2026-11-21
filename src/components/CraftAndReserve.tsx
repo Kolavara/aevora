@@ -1,8 +1,9 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion, useScroll, useTransform } from 'motion/react';
-import { Check, Minus, Plus } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Copy, Maximize2, Minus, Plus, X } from 'lucide-react';
 import {
   calculateBuildSummary,
+  estimateStorageCapacity,
   validateReservationForm,
   type BuildConfig,
   type ChassisFinish,
@@ -12,11 +13,20 @@ import {
 import { playDetentClick, playWakeChime } from '../utils/tactileAudio';
 import { MagneticButton } from './MagneticButton';
 
+export interface ConfirmedReservation {
+  orderCode: string;
+  total: number;
+  qty: number;
+  summary: ReturnType<typeof calculateBuildSummary>;
+  email: string;
+}
+
 interface CraftAndReserveProps {
   selectedFinish: ChassisFinish;
   soundEnabled: boolean;
   onSelectFinish: (finish: ChassisFinish) => void;
-  onReservationConfirmed: (qty: number) => void;
+  onReservationConfirmed: (reservation: ConfirmedReservation) => void;
+  latestReservation: ConfirmedReservation | null;
 }
 
 type BlueprintZone = 'diameter' | 'height' | 'display' | 'intake';
@@ -36,7 +46,7 @@ const BLUEPRINT_TOLERANCES: Record<BlueprintZone, { label: string; spec: string 
   },
   intake: {
     label: '360° Slotted Intake Channels',
-    spec: '12× lower vents feeding Noctua NF-A4x10 exhaust',
+    spec: 'Lower perimeter CNC vents feeding Noctua NF-A4x10 exhaust',
   },
 };
 
@@ -44,22 +54,22 @@ const GALLERY_ITEMS = [
   {
     src: '/src/assets/images/aevora_macro_detail_1794985692088.jpg',
     title: 'Precision Light Ring & Notch',
-    detail: 'Diffused 360° optical channel seated in CNC-chamfered aluminum.',
+    detail: 'Diffused 360° optical channel seated flush in CNC-chamfered 6061 aluminum.',
+  },
+  {
+    src: '/src/assets/images/aevora_macro_vents_1795193371131.jpg',
+    title: '360° Slotted Thermal Intake',
+    detail: 'Precision-milled vertical perimeter intake slots drawing cool air past the battery bay.',
+  },
+  {
+    src: '/src/assets/images/aevora_macro_usbc_1795193371488.jpg',
+    title: 'Recessed USB-C PD & Host Bus',
+    detail: 'Flush-machined USB-C boss with recessed alignment bevel and braided cable clearance.',
   },
   {
     src: '/src/assets/images/aevora_desk_setup_1794985692176.jpg',
     title: 'Architectural Desk Footprint',
-    detail: '100 mm cylindrical silhouette beside any workstation or laptop.',
-  },
-  {
-    src: '/src/assets/images/hero_aevora_studio_1794985690652.jpg',
-    title: '360° Slotted Thermal Intake',
-    detail: 'Lower perimeter slots feed the Noctua NF-A4x10 PWM exhaust path.',
-  },
-  {
-    src: '/src/assets/images/aevora_charcoal_edition_1794985692642.jpg',
-    title: 'Matte Charcoal Edition',
-    detail: 'Stealth anodized finish paired with electric neon-blue LVGL status ring.',
+    detail: 'Compact 100 mm cylindrical silhouette sitting naturally beside any workstation.',
   },
 ];
 
@@ -95,11 +105,14 @@ export const CraftAndReserve: React.FC<CraftAndReserveProps> = ({
   soundEnabled,
   onSelectFinish,
   onReservationConfirmed,
+  latestReservation,
 }) => {
   const [storage, setStorage] = useState<StorageTier>('1tb');
   const [bundle, setBundle] = useState<ModelBundle>('qwen-coder');
   const [quantity, setQuantity] = useState<number>(1);
   const [blueprintZone, setBlueprintZone] = useState<BlueprintZone>('diameter');
+  const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
+  const [copiedSpec, setCopiedSpec] = useState(false);
 
   const config: BuildConfig = {
     finish: selectedFinish,
@@ -112,22 +125,45 @@ export const CraftAndReserve: React.FC<CraftAndReserveProps> = ({
   const [email, setEmail] = useState('');
   const [region, setRegion] = useState('North America');
   const [errors, setErrors] = useState<{ fullName?: string; email?: string; region?: string }>({});
-  const [confirmedOrder, setConfirmedOrder] = useState<{
-    orderCode: string;
-    total: number;
-    qty: number;
-    summary: ReturnType<typeof calculateBuildSummary>;
-    email: string;
-  } | null>(null);
+  const [confirmedOrder, setConfirmedOrder] = useState<ConfirmedReservation | null>(latestReservation);
+
+  useEffect(() => {
+    setConfirmedOrder(latestReservation);
+  }, [latestReservation]);
+
+  // Keyboard support for Gallery Lightbox
+  useEffect(() => {
+    if (lightboxIdx === null) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setLightboxIdx(null);
+      } else if (e.key === 'ArrowRight') {
+        setLightboxIdx((i) => (i === null ? null : (i + 1) % GALLERY_ITEMS.length));
+      } else if (e.key === 'ArrowLeft') {
+        setLightboxIdx((i) =>
+          i === null ? null : (i - 1 + GALLERY_ITEMS.length) % GALLERY_ITEMS.length
+        );
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [lightboxIdx]);
 
   const summary = calculateBuildSummary(config);
+  const storageCapacity = estimateStorageCapacity(storage, bundle);
   const activeFinishMeta = FINISH_OPTIONS.find((f) => f.id === selectedFinish) ?? FINISH_OPTIONS[0];
+
   const craftRef = useRef<HTMLElement>(null);
   const { scrollYProgress: craftScroll } = useScroll({
     target: craftRef,
     offset: ['start end', 'end start'],
   });
-  const orthoParallaxY = useTransform(craftScroll, [0, 1], [16, -16]);
+  const orthoParallaxY = useTransform(craftScroll, [0, 1], [14, -14]);
+
+  const selectBlueprintZone = (zone: BlueprintZone) => {
+    playDetentClick(soundEnabled, 1080);
+    setBlueprintZone(zone);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -140,15 +176,36 @@ export const CraftAndReserve: React.FC<CraftAndReserveProps> = ({
 
     playWakeChime(soundEnabled);
     setErrors({});
-    const orderCode = `AEV-${Math.floor(1040 + (config.quantity * 17 + fullName.length * 13) % 8900)}`;
-    setConfirmedOrder({
+    const orderCode = `AEV-${Math.floor(1040 + ((config.quantity * 17 + fullName.length * 13) % 8900))}`;
+    const order: ConfirmedReservation = {
       orderCode,
       total: summary.totalPrice,
       qty: config.quantity,
       summary,
       email: email.trim(),
-    });
-    onReservationConfirmed(config.quantity);
+    };
+    setConfirmedOrder(order);
+    onReservationConfirmed(order);
+  };
+
+  const handleCopySpec = async () => {
+    if (!confirmedOrder) return;
+    playDetentClick(soundEnabled, 1180);
+    const text = [
+      `AEVORA Reservation #${confirmedOrder.orderCode}`,
+      `Enclosure: ${confirmedOrder.summary.finishLabel}`,
+      `Storage: ${confirmedOrder.summary.storageLabel}`,
+      `Pre-Flashed Suite: ${confirmedOrder.summary.bundleLabel}`,
+      `Quantity: ${confirmedOrder.qty}`,
+      `Reserved Total: $${confirmedOrder.total}`,
+    ].join('\n');
+    try {
+      await navigator.clipboard?.writeText(text);
+    } catch {
+      // Clipboard may be restricted in headless contexts; still provide confirmation state
+    }
+    setCopiedSpec(true);
+    window.setTimeout(() => setCopiedSpec(false), 2000);
   };
 
   return (
@@ -164,7 +221,7 @@ export const CraftAndReserve: React.FC<CraftAndReserveProps> = ({
             className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-end"
           >
             <div>
-              <div className="text-xs font-medium text-zinc-500">04. Industrial Craftsmanship</div>
+              <div className="text-xs font-medium text-zinc-500">05. Industrial Craftsmanship</div>
               <h2 className="mt-2 font-display text-3xl font-semibold tracking-tight text-zinc-950 sm:text-4xl text-balance">
                 Small footprint. Machined to acoustic tolerances.
               </h2>
@@ -175,7 +232,7 @@ export const CraftAndReserve: React.FC<CraftAndReserveProps> = ({
           </motion.div>
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-            {/* Interactive Vector Orthographic Blueprint Card with Scroll Depth Parallax */}
+            {/* Interactive Directly-Clickable Vector Orthographic Blueprint Card */}
             <motion.div
               style={{ y: orthoParallaxY }}
               initial={{ opacity: 0.92, y: 14 }}
@@ -189,7 +246,7 @@ export const CraftAndReserve: React.FC<CraftAndReserveProps> = ({
                   viewBox="0 0 260 310"
                   className="w-full max-w-[240px] h-auto"
                   role="img"
-                  aria-label="Vector orthographic top and front blueprint of AEVORA measuring 100mm diameter by 95mm height"
+                  aria-label="Interactive orthographic blueprint of AEVORA measuring 100mm diameter by 95mm height"
                 >
                   {/* Top View */}
                   <text x="16" y="20" fontSize="9" fontFamily="JetBrains Mono, monospace" fill="#71717a">
@@ -202,6 +259,8 @@ export const CraftAndReserve: React.FC<CraftAndReserveProps> = ({
                     fill="#d6d5d0"
                     stroke={blueprintZone === 'diameter' ? '#ff5500' : '#18181b'}
                     strokeWidth={blueprintZone === 'diameter' ? '2.5' : '1.5'}
+                    className="cursor-pointer transition-all"
+                    onClick={() => selectBlueprintZone('diameter')}
                   />
                   <circle
                     cx="110"
@@ -210,9 +269,27 @@ export const CraftAndReserve: React.FC<CraftAndReserveProps> = ({
                     fill="none"
                     stroke="#ff5500"
                     strokeWidth={blueprintZone === 'display' ? '6.5' : '5'}
+                    className="cursor-pointer transition-all"
+                    onClick={() => selectBlueprintZone('display')}
                   />
-                  <circle cx="110" cy="92" r="46" fill="#141416" />
-                  <text x="110" y="96" textAnchor="middle" fontSize="11" fontWeight="600" fontFamily="Outfit, sans-serif" fill="#ffffff">
+                  <circle
+                    cx="110"
+                    cy="92"
+                    r="46"
+                    fill="#141416"
+                    className="cursor-pointer"
+                    onClick={() => selectBlueprintZone('display')}
+                  />
+                  <text
+                    x="110"
+                    y="96"
+                    textAnchor="middle"
+                    fontSize="11"
+                    fontWeight="600"
+                    fontFamily="Outfit, sans-serif"
+                    fill="#ffffff"
+                    className="pointer-events-none"
+                  >
                     Aevora
                   </text>
                   {/* Diameter Callout */}
@@ -239,23 +316,40 @@ export const CraftAndReserve: React.FC<CraftAndReserveProps> = ({
                     fill="#d6d5d0"
                     stroke={blueprintZone === 'height' ? '#ff5500' : '#18181b'}
                     strokeWidth={blueprintZone === 'height' ? '2.5' : '1.5'}
+                    className="cursor-pointer transition-all"
+                    onClick={() => selectBlueprintZone('height')}
                   />
-                  <rect x="64" y="202" width="92" height="6" rx="2" fill="#141416" />
+                  <rect
+                    x="64"
+                    y="202"
+                    width="92"
+                    height="6"
+                    rx="2"
+                    fill="#141416"
+                    className="cursor-pointer"
+                    onClick={() => selectBlueprintZone('display')}
+                  />
                   <line x1="42" y1="242" x2="178" y2="242" stroke="#71717a" strokeWidth="1" />
                   <rect x="108" y="208" width="4" height="12" fill="#ff5500" />
-                  {/* Thermal Vent Slots */}
-                  {[52, 62, 72, 82, 92, 102, 112, 122, 132, 142, 152, 162].map((vx) => (
-                    <rect
-                      key={vx}
-                      x={vx}
-                      y="264"
-                      width="4"
-                      height="16"
-                      rx="2"
-                      fill="#ff5500"
-                      opacity={blueprintZone === 'intake' ? '1' : '0.82'}
-                    />
-                  ))}
+                  {/* Clickable Thermal Vent Slots Zone */}
+                  <g
+                    className="cursor-pointer"
+                    onClick={() => selectBlueprintZone('intake')}
+                  >
+                    <rect x="48" y="260" width="124" height="24" fill="transparent" />
+                    {[52, 62, 72, 82, 92, 102, 112, 122, 132, 142, 152, 162].map((vx) => (
+                      <rect
+                        key={vx}
+                        x={vx}
+                        y="264"
+                        width="4"
+                        height="16"
+                        rx="2"
+                        fill="#ff5500"
+                        opacity={blueprintZone === 'intake' ? '1' : '0.72'}
+                      />
+                    ))}
+                  </g>
                   {/* Height Callout */}
                   <line x1="194" y1="204" x2="194" y2="290" stroke={blueprintZone === 'height' ? '#ff5500' : '#71717a'} strokeWidth="1.25" />
                   <line x1="184" y1="204" x2="198" y2="204" stroke={blueprintZone === 'height' ? '#ff5500' : '#71717a'} strokeWidth="1.25" />
@@ -269,7 +363,7 @@ export const CraftAndReserve: React.FC<CraftAndReserveProps> = ({
                 </svg>
 
                 {/* Interactive Zone Buttons */}
-                <div className="mt-4 flex flex-wrap justify-center gap-1 rounded-xl bg-white p-1 border border-zinc-900/8">
+                <div className="mt-4 grid w-full grid-cols-4 gap-1 rounded-xl bg-white p-1 border border-zinc-900/8">
                   {(
                     [
                       { id: 'diameter', label: '100mm Ø' },
@@ -283,12 +377,9 @@ export const CraftAndReserve: React.FC<CraftAndReserveProps> = ({
                       <button
                         key={z.id}
                         type="button"
-                        onClick={() => {
-                          playDetentClick(soundEnabled, 1080);
-                          setBlueprintZone(z.id);
-                        }}
+                        onClick={() => selectBlueprintZone(z.id)}
                         aria-pressed={active}
-                        className={`rounded-lg px-2.5 py-1 font-mono text-[11px] font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                        className={`rounded-lg px-1.5 py-1.5 font-mono text-[10.5px] font-medium transition-colors whitespace-nowrap text-center cursor-pointer ${
                           active
                             ? 'bg-zinc-900 text-white'
                             : 'text-zinc-600 hover:text-zinc-950'
@@ -310,24 +401,36 @@ export const CraftAndReserve: React.FC<CraftAndReserveProps> = ({
               </div>
             </motion.div>
 
-            {/* 2x2 Crystal-Clear Studio Details Grid with Staggered Entrances */}
+            {/* 2x2 Unique High-Res Studio Macro Details Grid with Lightbox Inspection */}
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:col-span-8">
               {GALLERY_ITEMS.map((item, idx) => (
-                <motion.div
+                <motion.button
                   key={item.title}
+                  type="button"
+                  onClick={() => {
+                    playDetentClick(soundEnabled, 1120);
+                    setLightboxIdx(idx);
+                  }}
+                  aria-label={`Inspect ${item.title} full size`}
                   initial={{ opacity: 0.92, y: 14 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true, amount: 0.02 }}
                   transition={{ duration: 0.38, delay: idx * 0.05, ease: [0.16, 1, 0.3, 1] }}
-                  className="group flex flex-col overflow-hidden rounded-3xl bg-white border border-zinc-900/8 transition-all duration-200 hover:-translate-y-0.5 hover:border-zinc-900/18"
+                  className="group flex flex-col overflow-hidden rounded-3xl bg-white border border-zinc-900/8 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-zinc-900/20 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#ff5500]"
                 >
-                  <div className="aspect-[16/10] w-full overflow-hidden bg-[#eae8e1]">
+                  <div className="relative aspect-[16/10] w-full overflow-hidden bg-[#eae8e1]">
                     <img
                       src={item.src}
                       alt={item.title}
                       referrerPolicy="no-referrer"
                       className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.03]"
                     />
+                    <span
+                      aria-hidden="true"
+                      className="absolute top-3 right-3 flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-950/75 text-white opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+                    >
+                      <Maximize2 className="h-3.5 w-3.5" />
+                    </span>
                   </div>
                   <div className="p-5">
                     <div className="flex items-center justify-between gap-3">
@@ -342,12 +445,93 @@ export const CraftAndReserve: React.FC<CraftAndReserveProps> = ({
                       {item.detail}
                     </p>
                   </div>
-                </motion.div>
+                </motion.button>
               ))}
             </div>
           </div>
         </div>
       </section>
+
+      {/* Accessible Full-Resolution Gallery Lightbox */}
+      <AnimatePresence>
+        {lightboxIdx !== null && (
+          <motion.div
+            role="dialog"
+            aria-modal="true"
+            aria-label={GALLERY_ITEMS[lightboxIdx].title}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setLightboxIdx(null)}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 sm:p-8"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.96 }}
+              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative w-full max-w-4xl overflow-hidden rounded-3xl bg-[#16181e] border border-white/12 text-white shadow-2xl"
+            >
+              <div className="flex items-center justify-between gap-4 border-b border-white/10 px-5 py-3.5">
+                <div className="min-w-0">
+                  <div className="font-mono text-[11px] text-zinc-400 tabular-nums">
+                    0{lightboxIdx + 1} / 0{GALLERY_ITEMS.length} · Macro Inspection
+                  </div>
+                  <div className="truncate font-display text-base font-semibold text-white">
+                    {GALLERY_ITEMS[lightboxIdx].title}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      playDetentClick(soundEnabled, 980);
+                      setLightboxIdx(
+                        (lightboxIdx - 1 + GALLERY_ITEMS.length) % GALLERY_ITEMS.length
+                      );
+                    }}
+                    aria-label="Previous gallery photo"
+                    className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/15 bg-white/6 text-white hover:bg-white/14 cursor-pointer"
+                  >
+                    <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      playDetentClick(soundEnabled, 1140);
+                      setLightboxIdx((lightboxIdx + 1) % GALLERY_ITEMS.length);
+                    }}
+                    aria-label="Next gallery photo"
+                    className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/15 bg-white/6 text-white hover:bg-white/14 cursor-pointer"
+                  >
+                    <ChevronRight className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLightboxIdx(null)}
+                    aria-label="Close gallery lightbox"
+                    className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/15 bg-white/6 text-white hover:bg-white/14 cursor-pointer"
+                  >
+                    <X className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                </div>
+              </div>
+              <div className="aspect-[16/10] w-full bg-black">
+                <img
+                  src={GALLERY_ITEMS[lightboxIdx].src}
+                  alt={GALLERY_ITEMS[lightboxIdx].title}
+                  referrerPolicy="no-referrer"
+                  className="h-full w-full object-contain"
+                />
+              </div>
+              <div className="px-5 py-4 text-xs leading-relaxed text-zinc-300 border-t border-white/10">
+                {GALLERY_ITEMS[lightboxIdx].detail}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Hardware Configurator & Pre-Order Reservation Section */}
       <section id="reserve" className="scroll-mt-20 py-12 sm:py-16">
@@ -356,7 +540,7 @@ export const CraftAndReserve: React.FC<CraftAndReserveProps> = ({
             <div className="grid grid-cols-1 gap-8 sm:gap-10 lg:grid-cols-12">
               {/* Left: Spec Configurator Controls */}
               <div className="lg:col-span-7">
-                <div className="text-xs font-medium text-zinc-500">05. Hardware Reservation</div>
+                <div className="text-xs font-medium text-zinc-500">06. Hardware Reservation</div>
                 <h2 className="mt-2 font-display text-3xl font-semibold tracking-tight text-zinc-950 text-balance">
                   Configure your AEVORA build
                 </h2>
@@ -406,7 +590,7 @@ export const CraftAndReserve: React.FC<CraftAndReserveProps> = ({
                     </div>
                   </div>
 
-                  {/* NVMe Storage */}
+                  {/* NVMe Storage + Live Local LLM Headroom Estimator */}
                   <div>
                     <div className="text-xs font-semibold text-zinc-900">Samsung M.2 NVMe Storage</div>
                     <div className="mt-2 flex flex-wrap gap-2">
@@ -432,6 +616,12 @@ export const CraftAndReserve: React.FC<CraftAndReserveProps> = ({
                         );
                       })}
                     </div>
+                    <p
+                      data-testid="storage-capacity-readout"
+                      className="mt-2.5 font-mono text-xs text-zinc-600 tabular-nums"
+                    >
+                      {storageCapacity.summaryLine}
+                    </p>
                   </div>
 
                   {/* Pre-loaded Local Model Stack */}
@@ -480,7 +670,8 @@ export const CraftAndReserve: React.FC<CraftAndReserveProps> = ({
                         Order #{confirmedOrder.orderCode} Confirmed
                       </h3>
                       <p className="mt-2 text-sm text-zinc-600">
-                        Allocation confirmation sent to <span className="font-medium text-zinc-900">{confirmedOrder.email}</span>.
+                        Allocation confirmation saved for{' '}
+                        <span className="font-medium text-zinc-900">{confirmedOrder.email}</span>.
                       </p>
 
                       <dl className="mt-6 space-y-2.5 border-t border-zinc-900/10 pt-4 text-xs">
@@ -494,7 +685,9 @@ export const CraftAndReserve: React.FC<CraftAndReserveProps> = ({
                         </div>
                         <div className="flex justify-between gap-4">
                           <dt className="text-zinc-500">Quantity</dt>
-                          <dd className="font-mono tabular-nums font-medium text-zinc-900">{confirmedOrder.qty} unit(s)</dd>
+                          <dd className="font-mono tabular-nums font-medium text-zinc-900">
+                            {confirmedOrder.qty} unit(s)
+                          </dd>
                         </div>
                         <div className="flex justify-between gap-4 border-t border-zinc-900/10 pt-2.5 text-sm font-semibold text-zinc-950">
                           <dt>Reserved Total</dt>
@@ -503,13 +696,23 @@ export const CraftAndReserve: React.FC<CraftAndReserveProps> = ({
                       </dl>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => setConfirmedOrder(null)}
-                      className="mt-6 w-full rounded-xl border border-zinc-900/15 bg-white py-2.5 text-xs font-semibold text-zinc-900 hover:bg-zinc-50 cursor-pointer"
-                    >
-                      Configure Another Build
-                    </button>
+                    <div className="mt-6 flex flex-col gap-2">
+                      <button
+                        type="button"
+                        onClick={handleCopySpec}
+                        className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-zinc-950 py-2.5 text-xs font-semibold text-white hover:bg-zinc-800 cursor-pointer"
+                      >
+                        <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+                        <span>{copiedSpec ? 'Build Spec Copied' : 'Copy Build Specification'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmedOrder(null)}
+                        className="w-full rounded-xl border border-zinc-900/15 bg-white py-2.5 text-xs font-semibold text-zinc-900 hover:bg-zinc-50 cursor-pointer"
+                      >
+                        Configure Another Build
+                      </button>
+                    </div>
                   </motion.div>
                 ) : (
                   <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-5">
@@ -593,7 +796,7 @@ export const CraftAndReserve: React.FC<CraftAndReserveProps> = ({
                           type="text"
                           value={fullName}
                           onChange={(e) => setFullName(e.target.value)}
-                          placeholder="Aryan Gurudath"
+                          placeholder="Alex Rivera"
                           className="mt-1 w-full rounded-xl border border-zinc-900/15 bg-white px-3.5 py-2.5 text-sm text-zinc-950 placeholder:text-zinc-400 focus:border-zinc-950 focus:outline-none"
                         />
                         {errors.fullName && (

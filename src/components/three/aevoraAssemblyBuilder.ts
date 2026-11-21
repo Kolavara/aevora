@@ -19,7 +19,9 @@ export interface AevoraAssemblyHandles {
     curve: THREE.CatmullRomCurve3;
   }>;
   acousticHighlightGroup: THREE.Group;
+  acousticWaveRings: Array<{ mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial }>;
   selectionHalo: THREE.Mesh;
+  setLayerDimmed: (layerId: string, dimmed: boolean) => void;
   disposeGeometries: () => void;
 }
 
@@ -713,21 +715,55 @@ export function buildAevoraAssembly(mats: AevoraMaterialSet): AevoraAssemblyHand
   redDamper.position.y = -0.092;
   acousticGroup.add(redDamper);
 
-  // Acoustic Seal highlight rings
+  // Acoustic Isolation Visualization: red silicone gasket isolation ring + 3 downward sound wavefront rings
   const acousticHighlightGroup = new THREE.Group();
-  const wireRingGeo = track(new THREE.TorusGeometry(0.95, 0.014, 10, 48));
-  wireRingGeo.rotateX(Math.PI / 2);
-  const wireMat = new THREE.MeshBasicMaterial({
+
+  // Elastomer damper isolation halo hugging the silicone gasket
+  const damperSealGeo = track(new THREE.TorusGeometry(0.56, 0.062, 16, 48));
+  damperSealGeo.rotateX(Math.PI / 2);
+  const damperSealMat = new THREE.MeshBasicMaterial({
     color: 0xff5500,
     transparent: true,
-    opacity: 0.92,
+    opacity: 0.42,
+    depthWrite: false,
   });
-  extraDisposableMats.push(wireMat);
-  const wireTop = new THREE.Mesh(wireRingGeo, wireMat);
-  wireTop.position.y = 0.16;
-  const wireBot = new THREE.Mesh(wireRingGeo, wireMat);
-  wireBot.position.y = -0.16;
-  acousticHighlightGroup.add(wireTop, wireBot);
+  extraDisposableMats.push(damperSealMat);
+  const damperSealHalo = new THREE.Mesh(damperSealGeo, damperSealMat);
+  damperSealHalo.position.y = -0.092;
+  acousticHighlightGroup.add(damperSealHalo);
+
+  // Upper vibration-decoupling boundary collar showing mic isolation above speaker
+  const upperSealGeo = track(new THREE.TorusGeometry(0.89, 0.016, 12, 56));
+  upperSealGeo.rotateX(Math.PI / 2);
+  const upperSealMat = new THREE.MeshBasicMaterial({
+    color: 0xff7a33,
+    transparent: true,
+    opacity: 0.85,
+    depthWrite: false,
+  });
+  extraDisposableMats.push(upperSealMat);
+  const upperSealRing = new THREE.Mesh(upperSealGeo, upperSealMat);
+  upperSealRing.position.y = 0.145;
+  acousticHighlightGroup.add(upperSealRing);
+
+  // 3 animated concentric downward acoustic wavefront rings beneath the 45mm neodymium cone
+  const acousticWaveRings: Array<{ mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial }> = [];
+  const waveRingGeo = track(new THREE.TorusGeometry(0.42, 0.012, 10, 48));
+  waveRingGeo.rotateX(Math.PI / 2);
+  for (let w = 0; w < 3; w += 1) {
+    const waveMat = new THREE.MeshBasicMaterial({
+      color: 0x38bdf8,
+      transparent: true,
+      opacity: 0.65,
+      depthWrite: false,
+    });
+    extraDisposableMats.push(waveMat);
+    const waveMesh = new THREE.Mesh(waveRingGeo, waveMat);
+    waveMesh.position.y = -0.14 - w * 0.11;
+    acousticHighlightGroup.add(waveMesh);
+    acousticWaveRings.push({ mesh: waveMesh, mat: waveMat });
+  }
+
   acousticHighlightGroup.visible = false;
   acousticGroup.add(acousticHighlightGroup);
 
@@ -965,6 +1001,50 @@ export function buildAevoraAssembly(mats: AevoraMaterialSet): AevoraAssemblyHand
   airflowGroup.visible = false;
   root.add(airflowGroup);
 
+  // Snapshot original materials on every visual mesh per layer for zero-GC CAD X-Ray ghosting
+  const layerVisualMeshes: Record<
+    string,
+    Array<{ mesh: THREE.Mesh; origMat: THREE.Material | THREE.Material[]; origCastShadow: boolean }>
+  > = {};
+  const dimmedState: Record<string, boolean> = {};
+
+  Object.entries(layers).forEach(([layerId, grp]) => {
+    const entries: Array<{
+      mesh: THREE.Mesh;
+      origMat: THREE.Material | THREE.Material[];
+      origCastShadow: boolean;
+    }> = [];
+    grp.traverse((obj) => {
+      if (!(obj instanceof THREE.Mesh)) return;
+      if (obj.userData.layerId) return; // skip invisible raycast hit proxies
+      if (obj === micMuteIndicator || obj === dpdtIndicator) return; // dynamic state indicators
+      let cur: THREE.Object3D | null = obj;
+      while (cur) {
+        if (cur === acousticHighlightGroup) return;
+        cur = cur.parent;
+      }
+      entries.push({
+        mesh: obj,
+        origMat: obj.material,
+        origCastShadow: obj.castShadow,
+      });
+    });
+    layerVisualMeshes[layerId] = entries;
+    dimmedState[layerId] = false;
+  });
+
+  const setLayerDimmed = (layerId: string, dimmed: boolean) => {
+    if (dimmedState[layerId] === dimmed) return;
+    dimmedState[layerId] = dimmed;
+    const entries = layerVisualMeshes[layerId];
+    if (!entries) return;
+    for (let i = 0; i < entries.length; i += 1) {
+      const entry = entries[i];
+      entry.mesh.material = dimmed ? mats.ghostShell : entry.origMat;
+      entry.mesh.castShadow = dimmed ? false : entry.origCastShadow;
+    }
+  };
+
   return {
     root,
     layers,
@@ -979,7 +1059,9 @@ export function buildAevoraAssembly(mats: AevoraMaterialSet): AevoraAssemblyHand
     airflowParticles,
     airflowRoutes,
     acousticHighlightGroup,
+    acousticWaveRings,
     selectionHalo,
+    setLayerDimmed,
     disposeGeometries: () => {
       geometries.forEach((g) => g.dispose());
       extraDisposableMats.forEach((m) => m.dispose());

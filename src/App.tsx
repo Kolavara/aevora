@@ -1,13 +1,35 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { MotionConfig, motion, useScroll, useSpring } from 'motion/react';
 import { TopBar } from './components/TopBar';
 import { HeroSection } from './components/HeroSection';
 import { TactilePrivacyTwin } from './components/TactilePrivacyTwin';
 import { ExplodedExplorer } from './components/ExplodedExplorer';
 import { AutomationWorkbench } from './components/AutomationWorkbench';
-import { CraftAndReserve } from './components/CraftAndReserve';
+import { TechSpecsSection } from './components/TechSpecsSection';
+import { CraftAndReserve, type ConfirmedReservation } from './components/CraftAndReserve';
 import { Footer } from './components/Footer';
 import type { ChassisFinish, HardwareState } from './utils/aevoraEngine';
+
+const RESERVATION_STORAGE_KEY = 'aevora_reservation_state_v1';
+
+interface PersistedReservationState {
+  reservedCount: number;
+  latestReservation: ConfirmedReservation | null;
+}
+
+function loadPersistedReservations(): PersistedReservationState {
+  try {
+    const raw = window.localStorage.getItem(RESERVATION_STORAGE_KEY);
+    if (!raw) return { reservedCount: 0, latestReservation: null };
+    const parsed = JSON.parse(raw) as Partial<PersistedReservationState>;
+    return {
+      reservedCount: typeof parsed.reservedCount === 'number' && parsed.reservedCount >= 0 ? parsed.reservedCount : 0,
+      latestReservation: parsed.latestReservation ?? null,
+    };
+  } catch {
+    return { reservedCount: 0, latestReservation: null };
+  }
+}
 
 export default function App() {
   const [selectedFinish, setSelectedFinish] = useState<ChassisFinish>('silver');
@@ -19,8 +41,18 @@ export default function App() {
     ringAccent: 'amber',
   });
 
-  const [reservedCount, setReservedCount] = useState<number>(0);
+  const [reservationState, setReservationState] = useState<PersistedReservationState>(() =>
+    loadPersistedReservations()
+  );
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(RESERVATION_STORAGE_KEY, JSON.stringify(reservationState));
+    } catch {
+      // Ignore storage quota errors
+    }
+  }, [reservationState]);
 
   const { scrollYProgress } = useScroll();
   const smoothProgress = useSpring(scrollYProgress, {
@@ -48,10 +80,17 @@ export default function App() {
     setHardwareState((prev) => ({ ...prev, ...patch }));
   };
 
+  const handleReservationConfirmed = (reservation: ConfirmedReservation) => {
+    setReservationState((prev) => ({
+      reservedCount: prev.reservedCount + reservation.qty,
+      latestReservation: reservation,
+    }));
+  };
+
   return (
     <MotionConfig reducedMotion="user">
       <div className="min-h-screen bg-[#f2f1ec] text-zinc-900">
-        <TopBar onNavigate={scrollToSection} reservedCount={reservedCount} />
+        <TopBar onNavigate={scrollToSection} reservedCount={reservationState.reservedCount} />
         <motion.div
           aria-hidden="true"
           style={{ scaleX: smoothProgress }}
@@ -81,11 +120,13 @@ export default function App() {
             soundEnabled={soundEnabled}
             onPatchHardware={patchHardware}
           />
+          <TechSpecsSection soundEnabled={soundEnabled} />
           <CraftAndReserve
             selectedFinish={selectedFinish}
             soundEnabled={soundEnabled}
             onSelectFinish={handleFinishChange}
-            onReservationConfirmed={(qty) => setReservedCount((prev) => prev + qty)}
+            onReservationConfirmed={handleReservationConfirmed}
+            latestReservation={reservationState.latestReservation}
           />
         </main>
         <Footer onNavigate={scrollToSection} />

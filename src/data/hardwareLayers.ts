@@ -6,8 +6,6 @@ export interface HardwareLayer {
   name: string;
   component: string;
   category: Exclude<SubsystemCategory, 'all'>;
-  pinTopPct: number;
-  pinLeftPct: number;
   summary: string;
   specs: Array<{ label: string; value: string }>;
 }
@@ -19,8 +17,6 @@ export const HARDWARE_LAYERS: HardwareLayer[] = [
     name: 'Top Cover & Display',
     component: '2.4" Circular IPS LCD (240×240)',
     category: 'compute',
-    pinTopPct: 8,
-    pinLeftPct: 50,
     summary:
       'Brushed Ø100 mm aluminum crown housing a flush 2.4-inch circular IPS display running LVGL for real-time voice waveforms, inference progress rings, and diagnostics.',
     specs: [
@@ -35,8 +31,6 @@ export const HARDWARE_LAYERS: HardwareLayer[] = [
     name: 'Top Electronics & Mic PCB',
     component: 'Display Driver + ReSpeaker Array + FFC Bridge',
     category: 'acoustic',
-    pinTopPct: 18,
-    pinLeftPct: 50,
     summary:
       'Circular upper electronics board carrying the IPS display driver, far-field ReSpeaker microphone array, LED ring control IC, and copper FFC ribbon interconnect.',
     specs: [
@@ -51,8 +45,6 @@ export const HARDWARE_LAYERS: HardwareLayer[] = [
     name: 'LED Light-Guide & Control Ring',
     component: 'Hollow Collar + SPST Toggle + Mic Mute Pill',
     category: 'privacy',
-    pinTopPct: 29,
-    pinLeftPct: 50,
     summary:
       'CNC-machined hollow aluminum collar seating the internal 360° amber/cobalt light-guiding ring at top, and physical SPST mic cutoff + DPDT HID slide switch on the front face.',
     specs: [
@@ -67,8 +59,6 @@ export const HARDWARE_LAYERS: HardwareLayer[] = [
     name: 'Compute Tier',
     component: 'NVIDIA Jetson Orin Nano (69.6×45mm) + Heatsink',
     category: 'compute',
-    pinTopPct: 41,
-    pinLeftPct: 48,
     summary:
       'Ubuntu 22.04 carrier running quantized local LLMs via TensorRT-LLM and llama.cpp under a longitudinal multi-fin aluminum heatsink cooled by crossflow air.',
     specs: [
@@ -83,8 +73,6 @@ export const HARDWARE_LAYERS: HardwareLayer[] = [
     name: 'NVMe Storage',
     component: 'Samsung 970 EVO Plus M.2 2280 SSD',
     category: 'compute',
-    pinTopPct: 48,
-    pinLeftPct: 45,
     summary:
       'Mounted parallel beneath the Jetson Orin Nano carrier to store quantized LLM weights, embeddings, and local files with zero external network transfer.',
     specs: [
@@ -99,8 +87,6 @@ export const HARDWARE_LAYERS: HardwareLayer[] = [
     name: 'Deterministic Coprocessor',
     component: 'Seeed Studio XIAO RP2040 (USB-Host)',
     category: 'privacy',
-    pinTopPct: 55,
-    pinLeftPct: 36,
     summary:
       'Cantilevered dual Cortex-M0+ microcontroller providing deterministic native USB HID keyboard/mouse emulation, switch state sensing, and closed-loop PWM fan control.',
     specs: [
@@ -115,14 +101,12 @@ export const HARDWARE_LAYERS: HardwareLayer[] = [
     name: 'Active Side Exhaust',
     component: 'Noctua NF-A4x10 5V PWM + Exhaust Louvers',
     category: 'compute',
-    pinTopPct: 54,
-    pinLeftPct: 68,
     summary:
       'Side-mounted 40 mm Noctua PWM fan pulls cool base intake air upward past the speaker plenum, across the Jetson heatsink fins, and exhausts heat horizontally out the right louvers.',
     specs: [
       { label: 'Fan', value: 'Noctua NF-A4x10 PWM' },
       { label: 'Flow Path', value: 'Base → Fins → Side Out' },
-      { label: 'Acoustic', value: 'Anti-Vibration Pads' },
+      { label: 'Acoustic', value: '16.9–24.8 dBA Range' },
     ],
   },
   {
@@ -131,8 +115,6 @@ export const HARDWARE_LAYERS: HardwareLayer[] = [
     name: 'Speaker Acoustic Chamber',
     component: 'Sealed Enclosure + Downward Driver + Red Damper',
     category: 'acoustic',
-    pinTopPct: 69,
-    pinLeftPct: 48,
     summary:
       'Machined cutaway housing with acoustic foam damping holding a downward-firing 45 mm neodymium driver and thick red silicone isolator ring, flanked by cool air riser channels.',
     specs: [
@@ -147,8 +129,6 @@ export const HARDWARE_LAYERS: HardwareLayer[] = [
     name: 'UPS Power & 21700 Battery Bay',
     component: 'Waveshare UPS HAT (C) + 2× 21700 Cells + Base Vents',
     category: 'power',
-    pinTopPct: 84,
-    pinLeftPct: 54,
     summary:
       'Waveshare 5V/5A buck-boost UPS board seated above twin 5000 mAh green 21700 Li-ion cells inside a 360° slotted CNC intake base with preserved USB-C PD port.',
     specs: [
@@ -219,5 +199,93 @@ export const AUTOMATION_SCENARIOS: AutomationScenario[] = [
       { stage: 'On-Device Drafting', detail: 'Jetson Orin Nano drafts 3 concise responses entirely in local 8GB LPDDR5 memory.', durationMs: 800 },
       { stage: 'LVGL Approval Ring', detail: 'Circular IPS previews drafts for single-tap confirmation on the top glass face.', durationMs: 600 },
     ],
+  },
+];
+
+export type SpecGroupId = 'compute' | 'acoustics' | 'mechanical' | 'box';
+
+export interface TechnicalSpecGroup {
+  id: SpecGroupId;
+  label: string;
+  rows: Array<{ label: string; value: string; note?: string }>;
+}
+
+export const TECHNICAL_SPECS: TechnicalSpecGroup[] = [
+  {
+    id: 'compute',
+    label: 'Compute & Local AI',
+    rows: [
+      { label: 'Primary SoC', value: 'NVIDIA Jetson Orin Nano 8 GB', note: '1024-core Ampere GPU · 6-core Arm Cortex-A78AE' },
+      { label: 'AI Throughput', value: '40 TOPS (INT8) · 34.6 tok/s', note: 'Quantized Q4_K_M / FP8 via TensorRT-LLM & llama.cpp' },
+      { label: 'Coprocessor', value: 'Seeed Studio XIAO RP2040', note: 'Dual Cortex-M0+ deterministic USB HID & PWM controller' },
+      { label: 'Local Storage', value: '512 GB / 1 TB / 2 TB NVMe', note: 'Samsung 970 EVO Plus M.2 2280 PCIe Gen3 x4' },
+      { label: 'Operating Stack', value: 'Ubuntu 22.04 LTS + FastAPI', note: 'Open local REST/WebSocket agent runtime, zero telemetry' },
+    ],
+  },
+  {
+    id: 'acoustics',
+    label: 'Privacy & Acoustics',
+    rows: [
+      { label: 'Mic Kill Switch', value: 'SPST Mechanical Cutoff', note: 'Physically opens PCB power & I2S rail to ReSpeaker array' },
+      { label: 'USB Data Air-Gap', value: 'DPDT Slide Switch', note: 'Physically disconnects USB D+/D- lines from host PC' },
+      { label: 'Microphone Array', value: 'Far-Field ReSpeaker 4-Mic', note: 'On-device beamforming & Whisper-Small wake pipeline' },
+      { label: 'Speaker Chamber', value: '45 mm 5W Neodymium Driver', note: '0.1 L foam-damped ABS cavity + red silicone elastomer damper' },
+      { label: 'Acoustic Floor', value: '16.9 dBA idle · 24.8 dBA peak', note: 'Noctua NF-A4x10 5V PWM on anti-vibration mounts' },
+    ],
+  },
+  {
+    id: 'mechanical',
+    label: 'Mechanical & Power',
+    rows: [
+      { label: 'Dimensions', value: '100.0 mm Ø × 95.0 mm H', note: 'CNC-machined 6061 aluminum · ±0.05 mm concentricity' },
+      { label: 'Mass', value: '450 g (bottom-weighted)', note: 'Low center of gravity with anti-slip elastomer ring pad' },
+      { label: 'Top Interface', value: '2.4" Circular IPS (240×240)', note: 'LVGL UI under beveled glass + 360° PMMA light-guide ring' },
+      { label: 'Battery & UPS', value: '2× 21700 (2S 5000 mAh / 36 Wh)', note: 'Waveshare UPS HAT (C) · 2.5–7.5 hr cordless operation' },
+      { label: 'External I/O', value: 'USB-C PD (5V/3A) + USB-C HID', note: 'Zero-software host keyboard/mouse emulation + Wi-Fi 6 / BT 5.2' },
+    ],
+  },
+  {
+    id: 'box',
+    label: 'What’s in the Box',
+    rows: [
+      { label: 'AEVORA Companion', value: '1× Pre-assembled Unit', note: 'Flashed with Ubuntu 22.04, LVGL firmware & chosen model suite' },
+      { label: 'Host HID Cable', value: '1.5 m Braided USB-C to USB-C', note: 'Shielded low-capacitance data lead for XIAO RP2040 bridge' },
+      { label: 'Power Adapter', value: '30 W GaN USB-C PD Supply', note: 'Regional plug (NA / EU-UK / APAC) for pass-through charging' },
+      { label: 'Service Kit', value: '1.5 mm Hex Key + Spec Card', note: 'Full access to M.2 NVMe bay & replaceable 21700 battery pack' },
+    ],
+  },
+];
+
+export interface ComparisonRow {
+  criterion: string;
+  aevora: string;
+  cloudDevice: string;
+}
+
+export const LOCAL_VS_CLOUD_ROWS: ComparisonRow[] = [
+  {
+    criterion: 'Microphone Privacy',
+    aevora: 'SPST hardware open-circuit severs PCB mic rail',
+    cloudDevice: 'Software mute flag controlled by remote firmware',
+  },
+  {
+    criterion: 'Host PC Automation',
+    aevora: 'Native USB-C HID (zero host software or admin rights)',
+    cloudDevice: 'Requires screen-recording daemon or cloud OAuth',
+  },
+  {
+    criterion: 'Recurring Cost',
+    aevora: '$0 / month forever — own weights on local NVMe',
+    cloudDevice: '$20–$30 / month subscription + token caps',
+  },
+  {
+    criterion: 'Offline & Air-Gapped Use',
+    aevora: '100% functional offline + cordless 2S UPS battery',
+    cloudDevice: 'Unusable without live cloud API connection',
+  },
+  {
+    criterion: 'Voice-to-First-Token',
+    aevora: '~140 ms local Whisper + 34.6 tok/s TensorRT-LLM',
+    cloudDevice: '600–1,400 ms network upload & cloud queue jitter',
   },
 ];

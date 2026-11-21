@@ -3,6 +3,7 @@ export type ChassisFinish = 'silver' | 'charcoal';
 export type StorageTier = '512gb' | '1tb' | '2tb';
 export type ModelBundle = 'qwen-coder' | 'llama-general' | 'voice-suite';
 export type RingAccent = 'amber' | 'cobalt';
+export type TargetOs = 'macos' | 'windows' | 'linux' | 'android';
 
 export interface HardwareState {
   micEnabled: boolean; // SPST Toggle Switch: true = connected, false = physically open
@@ -15,6 +16,7 @@ export interface HardwareState {
 export interface TelemetrySnapshot {
   gpuLoadPct: number;
   fanRpm: number;
+  noiseFloorDba: number;
   chassisTempC: number;
   tokensPerSec: number;
   batteryPct: number;
@@ -38,6 +40,14 @@ export interface BuildSummary {
   estimatedShipWindow: string;
 }
 
+export interface StorageCapacityEstimate {
+  totalGb: number;
+  reservedOsGb: number;
+  availableGb: number;
+  approx7bModels: number;
+  summaryLine: string;
+}
+
 export interface ExecutionCheckResult {
   allowed: boolean;
   blockedReason: string | null;
@@ -56,12 +66,25 @@ export interface ValidationResult {
   errors: Partial<Record<keyof ReservationInput, string>>;
 }
 
+export interface SynthesizedHidPlan {
+  targetLabel: string;
+  requiresMic: boolean;
+  requiresHid: boolean;
+  triggerPhrase: string;
+  hidTranscript: string;
+  steps: Array<{
+    stage: string;
+    detail: string;
+    durationMs: number;
+  }>;
+}
+
 const BASE_UNIT_PRICE = 649;
 
-const STORAGE_SURCHARGE: Record<StorageTier, { price: number; label: string }> = {
-  '512gb': { price: 0, label: '512 GB Samsung M.2 NVMe' },
-  '1tb': { price: 70, label: '1 TB Samsung 970 EVO Plus NVMe' },
-  '2tb': { price: 160, label: '2 TB Samsung 970 EVO Plus NVMe' },
+const STORAGE_SURCHARGE: Record<StorageTier, { price: number; label: string; totalGb: number }> = {
+  '512gb': { price: 0, label: '512 GB Samsung M.2 NVMe', totalGb: 512 },
+  '1tb': { price: 70, label: '1 TB Samsung 970 EVO Plus NVMe', totalGb: 1000 },
+  '2tb': { price: 160, label: '2 TB Samsung 970 EVO Plus NVMe', totalGb: 2000 },
 };
 
 const FINISH_META: Record<ChassisFinish, { price: number; label: string }> = {
@@ -69,10 +92,10 @@ const FINISH_META: Record<ChassisFinish, { price: number; label: string }> = {
   charcoal: { price: 20, label: 'Matte Charcoal-Black Anodized' },
 };
 
-const BUNDLE_META: Record<ModelBundle, string> = {
-  'qwen-coder': 'Qwen-2.5 7B TensorRT + Whisper-Small',
-  'llama-general': 'Llama-3.2 8B Q4 + FastAPI Agent Stack',
-  'voice-suite': 'Ultra-Low Latency Voice + Android ADB Bridge',
+const BUNDLE_META: Record<ModelBundle, { label: string; footprintGb: number }> = {
+  'qwen-coder': { label: 'Qwen-2.5 7B TensorRT + Whisper-Small', footprintGb: 28 },
+  'llama-general': { label: 'Llama-3.2 8B Q4 + FastAPI Agent Stack', footprintGb: 31 },
+  'voice-suite': { label: 'Ultra-Low Latency Voice + Android ADB Bridge', footprintGb: 24 },
 };
 
 export function calculateBuildSummary(config: BuildConfig): BuildSummary {
@@ -86,30 +109,52 @@ export function calculateBuildSummary(config: BuildConfig): BuildSummary {
     totalPrice: unitPrice * safeQty,
     storageLabel: storage.label,
     finishLabel: finish.label,
-    bundleLabel: BUNDLE_META[config.bundle],
+    bundleLabel: BUNDLE_META[config.bundle].label,
     estimatedShipWindow: config.storage === '2tb' ? 'Batch 02 · Late Q1' : 'Batch 01 · Ships in 3 weeks',
   };
 }
 
+export function estimateStorageCapacity(
+  storage: StorageTier,
+  bundle: ModelBundle
+): StorageCapacityEstimate {
+  const totalGb = STORAGE_SURCHARGE[storage].totalGb;
+  const reservedOsGb = 22 + BUNDLE_META[bundle].footprintGb; // Ubuntu 22.04 + CUDA/TensorRT + pre-flashed bundle
+  const availableGb = Math.max(0, totalGb - reservedOsGb);
+  // Typical Q4_K_M 7B-8B model weight + KV cache footprint ~ 5.2 GB
+  const approx7bModels = Math.floor(availableGb / 5.2);
+
+  return {
+    totalGb,
+    reservedOsGb,
+    availableGb,
+    approx7bModels,
+    summaryLine: `${availableGb} GB free for local weights & RAG (~${approx7bModels} quantized 7B–8B models)`,
+  };
+}
+
 export function estimateTelemetry(state: HardwareState): TelemetrySnapshot {
-  const modeProfiles: Record<LvglMode, { gpu: number; rpm: number; temp: number; tps: number; watts: number }> = {
-    idle: { gpu: 4, rpm: 1450, temp: 33, tps: 0, watts: 4.8 },
-    listening: { gpu: 18, rpm: 1950, temp: 37, tps: 0, watts: 7.4 },
-    inference: { gpu: 88, rpm: 3800, temp: 49, tps: 34.6, watts: 14.2 },
-    hid: { gpu: 64, rpm: 3100, temp: 44, tps: 26.8, watts: 11.6 },
-    thermal: { gpu: 96, rpm: 4800, temp: 43, tps: 38.2, watts: 15.0 },
+  const modeProfiles: Record<
+    LvglMode,
+    { gpu: number; rpm: number; dba: number; temp: number; tps: number; watts: number }
+  > = {
+    idle: { gpu: 4, rpm: 1450, dba: 16.9, temp: 33, tps: 0, watts: 4.8 },
+    listening: { gpu: 18, rpm: 1950, dba: 17.8, temp: 37, tps: 0, watts: 7.4 },
+    inference: { gpu: 88, rpm: 3800, dba: 21.6, temp: 49, tps: 34.6, watts: 14.2 },
+    hid: { gpu: 64, rpm: 3100, dba: 19.9, temp: 44, tps: 26.8, watts: 11.6 },
+    thermal: { gpu: 96, rpm: 4800, dba: 24.8, temp: 43, tps: 38.2, watts: 15.0 },
   };
 
   let profile = modeProfiles[state.lvglMode];
 
   // Physical SPST mic kill switch forces listening mode back to idle acoustics
   if (!state.micEnabled && state.lvglMode === 'listening') {
-    profile = { gpu: 3, rpm: 1400, temp: 32, tps: 0, watts: 4.4 };
+    profile = { gpu: 3, rpm: 1400, dba: 16.8, temp: 32, tps: 0, watts: 4.4 };
   }
 
   // Physical DPDT isolation stops USB HID host bridge draw
   if (!state.hidConnected && state.lvglMode === 'hid') {
-    profile = { gpu: 12, rpm: 1800, temp: 36, tps: 0, watts: 5.9 };
+    profile = { gpu: 12, rpm: 1800, dba: 17.4, temp: 36, tps: 0, watts: 5.9 };
   }
 
   // 5000mAh 2S 21700 pack (~36Wh usable energy at 7.2V nominal)
@@ -119,6 +164,7 @@ export function estimateTelemetry(state: HardwareState): TelemetrySnapshot {
   return {
     gpuLoadPct: profile.gpu,
     fanRpm: profile.rpm,
+    noiseFloorDba: profile.dba,
     chassisTempC: profile.temp,
     tokensPerSec: profile.tps,
     batteryPct: state.cordlessMode ? 86 : 100,
@@ -134,7 +180,8 @@ export function evaluateExecutionReadiness(
   if (options.requiresMic && !state.micEnabled) {
     return {
       allowed: false,
-      blockedReason: 'SPST Microphone Kill Switch is physically OPEN. Flip the mic switch ON to capture voice wake-word.',
+      blockedReason:
+        'SPST Microphone Kill Switch is physically OPEN. Flip the mic switch ON to capture voice wake-word.',
       requiresMic: true,
       requiresHid: options.requiresHid,
     };
@@ -143,7 +190,8 @@ export function evaluateExecutionReadiness(
   if (options.requiresHid && !state.hidConnected) {
     return {
       allowed: false,
-      blockedReason: 'DPDT Data Switch is set to ISOLATED. Slide DPDT to ON to bridge USB HID lines to the host PC.',
+      blockedReason:
+        'DPDT Data Switch is set to ISOLATED. Slide DPDT to ON to bridge USB HID lines to the host PC.',
       requiresMic: options.requiresMic,
       requiresHid: true,
     };
@@ -154,6 +202,109 @@ export function evaluateExecutionReadiness(
     blockedReason: null,
     requiresMic: options.requiresMic,
     requiresHid: options.requiresHid,
+  };
+}
+
+export function synthesizeCustomHidPlan(
+  rawPrompt: string,
+  targetOs: TargetOs
+): SynthesizedHidPlan {
+  const cleaned = rawPrompt.trim().replace(/\s+/g, ' ');
+  const prompt = cleaned.length > 0 ? cleaned.slice(0, 140) : 'Open terminal, run test suite, and copy summary';
+  const shortCmd = prompt.length > 46 ? `${prompt.slice(0, 43)}...` : prompt;
+
+  if (targetOs === 'android') {
+    return {
+      targetLabel: 'Android Local Peer',
+      requiresMic: true,
+      requiresHid: false,
+      triggerPhrase: `"Aevora, ${prompt}"`,
+      hidTranscript: [
+        `ADB_LOCAL_BRIDGE -> Pair verified (LAN 0-cloud)`,
+        `INTENT_ACTION -> "${shortCmd}"`,
+        `LVGL_CONFIRM -> Ready for single-tap dispatch`,
+      ].join('\n'),
+      steps: [
+        {
+          stage: 'Wake-Word & Local STT',
+          detail: 'ReSpeaker captures voice prompt; Whisper-Small transcribes locally in 138 ms.',
+          durationMs: 520,
+        },
+        {
+          stage: 'Jetson Orin Planner',
+          detail: 'TensorRT-LLM compiles structured Android intent payload inside 8 GB LPDDR5.',
+          durationMs: 700,
+        },
+        {
+          stage: 'Local Peer Dispatch',
+          detail: 'Sends encrypted intent packet directly to companion Android handset over local Wi-Fi.',
+          durationMs: 760,
+        },
+        {
+          stage: 'LVGL Approval Ring',
+          detail: '2.4" circular IPS displays confirmation ring and returns Orin GPU to idle draw.',
+          durationMs: 520,
+        },
+      ],
+    };
+  }
+
+  const launcherChord =
+    targetOs === 'macos'
+      ? 'HID_MOD_LGUI + KEY_SPACE  // Spotlight'
+      : targetOs === 'windows'
+      ? 'HID_MOD_LGUI + KEY_R      // Run Dialog'
+      : 'HID_MOD_LCTRL + ALT + T   // Terminal';
+
+  const appTarget =
+    targetOs === 'macos'
+      ? 'Terminal.app'
+      : targetOs === 'windows'
+      ? 'wt.exe'
+      : 'bash --local';
+
+  const targetLabel =
+    targetOs === 'macos'
+      ? 'macOS Host (USB HID)'
+      : targetOs === 'windows'
+      ? 'Windows Host (USB HID)'
+      : 'Linux Host (USB HID)';
+
+  const safeLiteral = shortCmd.replace(/"/g, "'");
+
+  return {
+    targetLabel,
+    requiresMic: true,
+    requiresHid: true,
+    triggerPhrase: `"Aevora, ${prompt}"`,
+    hidTranscript: [
+      `RP2040_HID -> ${launcherChord}`,
+      `HID_TYPE   -> "${appTarget}" + KEY_ENTER`,
+      `HID_EXEC   -> "# ${safeLiteral}"`,
+      `HOST_ACK   -> Completed locally · 0 cloud packets`,
+    ].join('\n'),
+    steps: [
+      {
+        stage: 'Wake-Word & Local STT',
+        detail: 'ReSpeaker captures spoken prompt; local Whisper transcribes in 140 ms (0 bytes external).',
+        durationMs: 520,
+      },
+      {
+        stage: 'Jetson Orin Planner',
+        detail: `FastAPI + TensorRT-LLM maps request to deterministic ${targetLabel} USB HID scan codes.`,
+        durationMs: 720,
+      },
+      {
+        stage: 'XIAO RP2040 HID Injection',
+        detail: `DPDT bridges D+/D-; RP2040 sends ${launcherChord.split('//')[0].trim()} with zero host driver.`,
+        durationMs: 820,
+      },
+      {
+        stage: 'Voice & Ring Confirmation',
+        detail: '45 mm neodymium driver confirms completion; LVGL ring settles to standby.',
+        durationMs: 540,
+      },
+    ],
   };
 }
 
@@ -179,29 +330,6 @@ export function validateReservationForm(input: ReservationInput): ValidationResu
     valid: Object.keys(errors).length === 0,
     errors,
   };
-}
-
-export interface InspectionFocus {
-  scale: number;
-  translateXPct: number;
-  translateYPct: number;
-}
-
-export function computeInspectionFocus(
-  pinLeftPct: number,
-  pinTopPct: number,
-  zoomed: boolean
-): InspectionFocus {
-  if (!zoomed) {
-    return { scale: 1, translateXPct: 0, translateYPct: 0 };
-  }
-  const scale = 1.42;
-  // Center the active pin cleanly while clamping shifts so edges never expose empty background
-  const rawX = (50 - pinLeftPct) * 0.42;
-  const rawY = (50 - pinTopPct) * 0.48;
-  const translateXPct = Number(Math.max(-14, Math.min(14, rawX)).toFixed(2));
-  const translateYPct = Number(Math.max(-18, Math.min(18, rawY)).toFixed(2));
-  return { scale, translateXPct, translateYPct };
 }
 
 const DIAL_ANGLES: Record<LvglMode, number> = {
@@ -317,8 +445,6 @@ export function computeExplodedLayerPositions(
   });
 
   // 1:1 Noctua NF-A4x10 PWM (40 × 40 × 10 mm -> ±0.418 XY, ±0.1045 Z):
-  // Radial center r_fan = 0.805 at 0% puts outer exhaust louver bevel (0.805 + 0.130 = 0.935)
-  // within circle-chord sqrt(1.045^2 - 0.418^2) = 0.9578, flush inside the Ø100mm × H95mm silhouette.
   const thermalZoneY = (result.jetson.yOffset + result.nvme.yOffset) * 0.5;
   const fanSelected = selectedLayerId === 'fan';
   const fanRadial = 0.805 + clamped * 0.56 + (fanSelected ? 0.14 * clamped : 0);
@@ -332,7 +458,3 @@ export function computeExplodedLayerPositions(
 
   return result;
 }
-
-
-
-
