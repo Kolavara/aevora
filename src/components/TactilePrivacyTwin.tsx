@@ -13,6 +13,7 @@ import {
   Radio,
   Volume2,
   VolumeX,
+  Zap,
 } from 'lucide-react';
 import {
   computeAmbientBloom,
@@ -834,27 +835,47 @@ export const TactilePrivacyTwin: React.FC<TactilePrivacyTwinProps> = ({
                 </div>
               </div>
 
-              <div className="mt-2.5 grid grid-cols-3 gap-2 sm:gap-3">
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <Cpu className="h-3.5 w-3.5 text-zinc-600 shrink-0" aria-hidden="true" />
+              <div
+                data-testid="hardware-telemetry-grid"
+                className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4 sm:gap-3"
+              >
+                <div className="flex items-start gap-2 min-w-0">
+                  <Cpu className="mt-0.5 h-3.5 w-3.5 text-zinc-500 shrink-0" aria-hidden="true" />
                   <div className="min-w-0">
                     <div className="text-[11px] text-zinc-500 whitespace-nowrap">Orin GPU</div>
-                    <div className="font-semibold text-zinc-950 whitespace-nowrap">{telemetry.gpuLoadPct}%</div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <Fan className="h-3.5 w-3.5 text-zinc-600 shrink-0" aria-hidden="true" />
-                  <div className="min-w-0">
-                    <div className="text-[11px] text-zinc-500 whitespace-nowrap">Fan · Noise</div>
                     <div className="font-semibold text-zinc-950 whitespace-nowrap">
-                      {telemetry.fanRpm} RPM · {telemetry.noiseFloorDba} dBA
+                      {telemetry.gpuLoadPct}%
                     </div>
                   </div>
                 </div>
-                <div className="min-w-0 text-right sm:text-left">
-                  <div className="text-[11px] text-zinc-500 whitespace-nowrap">Power</div>
-                  <div className="font-semibold text-zinc-950 whitespace-nowrap">
-                    {telemetry.powerDrawWatts}W · {telemetry.estimatedRuntimeHours}h
+
+                <div className="flex items-start gap-2 min-w-0">
+                  <Fan className="mt-0.5 h-3.5 w-3.5 text-zinc-500 shrink-0" aria-hidden="true" />
+                  <div className="min-w-0">
+                    <div className="text-[11px] text-zinc-500 whitespace-nowrap">Fan</div>
+                    <div className="font-semibold text-zinc-950 whitespace-nowrap">
+                      {telemetry.fanRpm} RPM
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-2 min-w-0">
+                  <Volume2 className="mt-0.5 h-3.5 w-3.5 text-zinc-500 shrink-0" aria-hidden="true" />
+                  <div className="min-w-0">
+                    <div className="text-[11px] text-zinc-500 whitespace-nowrap">Noise</div>
+                    <div className="font-semibold text-zinc-950 whitespace-nowrap">
+                      {telemetry.noiseFloorDba} dBA
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-2 min-w-0">
+                  <Zap className="mt-0.5 h-3.5 w-3.5 text-zinc-500 shrink-0" aria-hidden="true" />
+                  <div className="min-w-0">
+                    <div className="text-[11px] text-zinc-500 whitespace-nowrap">Power</div>
+                    <div className="font-semibold text-zinc-950 whitespace-nowrap">
+                      {telemetry.powerDrawWatts}W · {telemetry.estimatedRuntimeHours}h
+                    </div>
                   </div>
                 </div>
               </div>

@@ -157,7 +157,7 @@ export const ExplodedExplorer: React.FC<ExplodedExplorerProps> = ({
           <div
             role="tablist"
             aria-label="Filter hardware subsystems"
-            className="flex flex-wrap lg:flex-nowrap shrink-0 items-center gap-1 rounded-xl bg-white/6 p-1 border border-white/10"
+            className="flex flex-nowrap overflow-x-auto max-w-full shrink-0 items-center gap-1 rounded-xl bg-white/6 p-1 border border-white/10"
           >
             {CATEGORIES.map((cat) => {
               const active = category === cat.id;
@@ -168,7 +168,7 @@ export const ExplodedExplorer: React.FC<ExplodedExplorerProps> = ({
                   role="tab"
                   aria-selected={active}
                   onClick={() => handleCategoryChange(cat.id)}
-                  className={`relative rounded-lg px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                  className={`relative rounded-lg px-2.5 sm:px-3 py-1.5 text-[11.5px] sm:text-xs font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                     active
                       ? 'text-zinc-950'
                       : 'text-zinc-300 hover:text-white'

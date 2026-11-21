@@ -39,17 +39,42 @@ export const TechSpecsSection: React.FC<TechSpecsSectionProps> = ({
               </h2>
             </div>
             <p className="max-w-md text-sm leading-relaxed text-zinc-600">
-              Every inference pass, wake-word buffer, and USB HID keystroke stays inside your anodized enclosure—verifiable with a multimeter.
+              Run 100% on-device by default, offload offline to a GPU workstation on your LAN, or opt in to frontier cloud models with your own API key—with hardware privacy verifiable by multimeter.
             </p>
           </div>
 
-          <div className="overflow-x-auto rounded-3xl bg-white border border-zinc-900/8">
+          {/* Mobile Stacked Comparison Cards (No Horizontal Panning) */}
+          <div className="space-y-3 md:hidden" data-testid="mobile-comparison-list">
+            {LOCAL_VS_CLOUD_ROWS.map((row) => (
+              <div
+                key={row.criterion}
+                className="rounded-2xl bg-white p-4 border border-zinc-900/8 space-y-2.5"
+              >
+                <div className="text-xs font-semibold text-zinc-900">
+                  {row.criterion}
+                </div>
+                <div className="rounded-xl bg-[#f5f4ef] px-3 py-2.5 text-xs leading-relaxed text-zinc-950">
+                  <div className="font-mono text-[10px] font-semibold text-[#ff5500]">
+                    AEVORA · LOCAL-FIRST &amp; HYBRID
+                  </div>
+                  <div className="mt-0.5 font-medium">{row.aevora}</div>
+                </div>
+                <div className="px-1 text-xs leading-relaxed text-zinc-500">
+                  <span className="font-medium text-zinc-600">Cloud companion: </span>
+                  {row.cloudDevice}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop 3-Column Comparison Table */}
+          <div className="hidden md:block overflow-x-auto rounded-3xl bg-white border border-zinc-900/8">
             <table className="w-full min-w-[620px] border-collapse text-left">
               <thead>
                 <tr className="border-b border-zinc-900/8 text-xs font-medium text-zinc-500">
                   <th className="py-4 pl-6 pr-4 font-medium w-[24%]">Criterion</th>
                   <th className="py-4 px-4 font-semibold text-zinc-950 w-[40%]">
-                    AEVORA (On-Device Silicon)
+                    AEVORA (Local-First · LAN · BYOK)
                   </th>
                   <th className="py-4 pl-4 pr-6 font-medium text-zinc-500 w-[36%]">
                     Typical Cloud AI Companion
@@ -102,7 +127,7 @@ export const TechSpecsSection: React.FC<TechSpecsSectionProps> = ({
             <div
               role="tablist"
               aria-label="Specification categories"
-              className="flex flex-wrap items-center gap-1 rounded-xl bg-[#f2f1ec] p-1 border border-zinc-900/8"
+              className="grid w-full grid-cols-2 gap-1 rounded-xl bg-[#f2f1ec] p-1 border border-zinc-900/8 sm:flex sm:w-auto sm:flex-wrap sm:items-center"
             >
               {TECHNICAL_SPECS.map((group) => {
                 const active = group.id === activeGroup;
@@ -116,7 +141,7 @@ export const TechSpecsSection: React.FC<TechSpecsSectionProps> = ({
                       playDetentClick(soundEnabled, 1040);
                       setActiveGroup(group.id);
                     }}
-                    className={`relative rounded-lg px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                    className={`relative rounded-lg px-2.5 sm:px-3 py-2 sm:py-1.5 text-center text-xs font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                       active
                         ? 'text-white'
                         : 'text-zinc-600 hover:text-zinc-950'

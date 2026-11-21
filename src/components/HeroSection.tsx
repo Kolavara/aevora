@@ -56,9 +56,9 @@ const HERO_SPECS = [
     highlight: false,
   },
   {
-    kicker: 'Cloud Dependency',
-    value: '0 Bytes Sent',
-    sub: 'Ubuntu 22.04 · TensorRT-LLM',
+    kicker: 'Inference Routing',
+    value: 'Local · LAN · API',
+    sub: 'On-device default · Offline peer or BYOK',
     highlight: true,
   },
 ];
@@ -128,7 +128,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
               >
                 <span>Autonomous Desk Hardware</span>
                 <span aria-hidden="true">·</span>
-                <span>100% On-Device</span>
+                <span>Local-First &amp; Hybrid-Ready</span>
               </motion.div>
 
               <motion.h1
@@ -137,7 +137,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
                 transition={{ duration: 0.44, delay: 0.08, ease: [0.16, 1, 0.3, 1] }}
                 className="mt-5 font-display text-[clamp(2.35rem,4.3vw,3.85rem)] font-semibold leading-[1.04] tracking-tight text-zinc-950 text-balance"
               >
-                Own the agent. Zero cloud dependency.
+                Own the agent. Zero cloud lock-in.
               </motion.h1>
 
               <motion.p
@@ -146,7 +146,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
                 transition={{ duration: 0.44, delay: 0.14, ease: [0.16, 1, 0.3, 1] }}
                 className="mt-5 max-w-xl text-base leading-relaxed text-zinc-600"
               >
-                AEVORA is a 100 mm cylindrical desktop companion powered by an NVIDIA Jetson Orin Nano and XIAO RP2040 coprocessor. It runs local LLMs, isolates microphones with real mechanical switches, and automates your PC via native USB HID.
+                AEVORA is a 100 mm cylindrical desktop companion powered by an NVIDIA Jetson Orin Nano and XIAO RP2040 coprocessor. Run quantized LLMs on-device, offload offline to another machine on your LAN, or connect to cloud models with your own API key—while keeping physical mic switches and native USB HID under your control.
               </motion.p>
 
               {/* Interactive Edition Preview Switcher with Fluid Shared Indicator */}

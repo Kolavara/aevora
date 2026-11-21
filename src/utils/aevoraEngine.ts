@@ -4,6 +4,18 @@ export type StorageTier = '512gb' | '1tb' | '2tb';
 export type ModelBundle = 'qwen-coder' | 'llama-general' | 'voice-suite';
 export type RingAccent = 'amber' | 'cobalt';
 export type TargetOs = 'macos' | 'windows' | 'linux' | 'android';
+export type InferenceRoute = 'on-device' | 'lan-peer' | 'cloud-byok';
+
+export interface InferenceRouteMeta {
+  id: InferenceRoute;
+  label: string;
+  shortLabel: string;
+  endpointNote: string;
+  plannerStage: string;
+  plannerDetail: string;
+  completionSummary: string;
+  badgeText: string;
+}
 
 export interface HardwareState {
   micEnabled: boolean; // SPST Toggle Switch: true = connected, false = physically open
@@ -205,13 +217,71 @@ export function evaluateExecutionReadiness(
   };
 }
 
+const INFERENCE_ROUTES: Record<InferenceRoute, InferenceRouteMeta> = {
+  'on-device': {
+    id: 'on-device',
+    label: 'On-Device Orin',
+    shortLabel: 'On-Device',
+    endpointNote: 'Local TensorRT-LLM / llama.cpp on Jetson Orin Nano · 0 bytes external',
+    plannerStage: 'Jetson Orin Planner',
+    plannerDetail:
+      'FastAPI + TensorRT-LLM executes quantized weights inside 8 GB LPDDR5 (0 bytes sent externally).',
+    completionSummary: 'Loop completed on Jetson Orin Nano · 0 bytes sent externally.',
+    badgeText: 'LOCAL 0-CLOUD',
+  },
+  'lan-peer': {
+    id: 'lan-peer',
+    label: 'Offline LAN Rig',
+    shortLabel: 'LAN Peer',
+    endpointNote:
+      'Offline model hosted on another LAN machine (Ollama / vLLM / llama.cpp server) · 0 cloud bytes',
+    plannerStage: 'LAN Peer GPU Planner',
+    plannerDetail:
+      'FastAPI routes an OpenAI-compatible request over local LAN to an offline workstation GPU (0 cloud packets).',
+    completionSummary: 'Loop completed via offline LAN peer GPU · 0 cloud packets.',
+    badgeText: 'LAN OFFLINE',
+  },
+  'cloud-byok': {
+    id: 'cloud-byok',
+    label: 'Cloud BYOK API',
+    shortLabel: 'Cloud BYOK',
+    endpointNote:
+      'Opt-in frontier cloud model via your own API key in local FastAPI config · zero AEVORA subscription',
+    plannerStage: 'Cloud BYOK API Planner',
+    plannerDetail:
+      'FastAPI calls your configured cloud model endpoint using your own API key and returns deterministic HID steps.',
+    completionSummary: 'Loop completed via user BYOK cloud API · Local RP2040 HID execution.',
+    badgeText: 'BYOK OPT-IN',
+  },
+};
+
+export function getInferenceRouteMeta(route: InferenceRoute): InferenceRouteMeta {
+  return INFERENCE_ROUTES[route];
+}
+
 export function synthesizeCustomHidPlan(
   rawPrompt: string,
-  targetOs: TargetOs
+  targetOs: TargetOs,
+  route: InferenceRoute = 'on-device'
 ): SynthesizedHidPlan {
   const cleaned = rawPrompt.trim().replace(/\s+/g, ' ');
   const prompt = cleaned.length > 0 ? cleaned.slice(0, 140) : 'Open terminal, run test suite, and copy summary';
   const shortCmd = prompt.length > 46 ? `${prompt.slice(0, 43)}...` : prompt;
+  const routeMeta = INFERENCE_ROUTES[route];
+
+  const routeAck =
+    route === 'on-device'
+      ? 'Completed locally · 0 cloud packets'
+      : route === 'lan-peer'
+      ? 'Planned on LAN peer GPU (offline) · 0 cloud packets'
+      : 'Planned via user BYOK cloud API · Local RP2040 HID';
+
+  const routeHeader =
+    route === 'on-device'
+      ? 'ROUTE      -> local://jetson-orin-tensorrt'
+      : route === 'lan-peer'
+      ? 'ROUTE      -> http://workstation.local:11434/v1 (LAN offline)'
+      : 'ROUTE      -> https://api.provider/v1 (User BYOK key)';
 
   if (targetOs === 'android') {
     return {
@@ -220,9 +290,10 @@ export function synthesizeCustomHidPlan(
       requiresHid: false,
       triggerPhrase: `"Aevora, ${prompt}"`,
       hidTranscript: [
-        `ADB_LOCAL_BRIDGE -> Pair verified (LAN 0-cloud)`,
+        routeHeader,
+        `ADB_LOCAL_BRIDGE -> Pair verified (LAN local peer)`,
         `INTENT_ACTION -> "${shortCmd}"`,
-        `LVGL_CONFIRM -> Ready for single-tap dispatch`,
+        `LVGL_CONFIRM -> ${routeAck}`,
       ].join('\n'),
       steps: [
         {
@@ -231,8 +302,8 @@ export function synthesizeCustomHidPlan(
           durationMs: 520,
         },
         {
-          stage: 'Jetson Orin Planner',
-          detail: 'TensorRT-LLM compiles structured Android intent payload inside 8 GB LPDDR5.',
+          stage: routeMeta.plannerStage,
+          detail: routeMeta.plannerDetail,
           durationMs: 700,
         },
         {
@@ -278,20 +349,21 @@ export function synthesizeCustomHidPlan(
     requiresHid: true,
     triggerPhrase: `"Aevora, ${prompt}"`,
     hidTranscript: [
+      routeHeader,
       `RP2040_HID -> ${launcherChord}`,
       `HID_TYPE   -> "${appTarget}" + KEY_ENTER`,
       `HID_EXEC   -> "# ${safeLiteral}"`,
-      `HOST_ACK   -> Completed locally · 0 cloud packets`,
+      `HOST_ACK   -> ${routeAck}`,
     ].join('\n'),
     steps: [
       {
         stage: 'Wake-Word & Local STT',
-        detail: 'ReSpeaker captures spoken prompt; local Whisper transcribes in 140 ms (0 bytes external).',
+        detail: 'ReSpeaker captures spoken prompt; local Whisper transcribes in 140 ms on-device.',
         durationMs: 520,
       },
       {
-        stage: 'Jetson Orin Planner',
-        detail: `FastAPI + TensorRT-LLM maps request to deterministic ${targetLabel} USB HID scan codes.`,
+        stage: routeMeta.plannerStage,
+        detail: `${routeMeta.plannerDetail} Maps request to deterministic ${targetLabel} USB HID scan codes.`,
         durationMs: 720,
       },
       {

@@ -779,7 +779,7 @@ export const AevoraExplodedStage: React.FC<AevoraExplodedStageProps> = ({
       data-mic={String(micEnabled)}
       data-mode={lvglMode}
       data-explode={explodeAmount.toFixed(2)}
-      className="relative h-[500px] sm:h-[560px] lg:h-full lg:min-h-[610px] w-full overflow-hidden rounded-2xl bg-[#13151a] border border-white/10 select-none"
+      className="relative h-[530px] sm:h-[560px] lg:h-full lg:min-h-[610px] w-full overflow-hidden rounded-2xl bg-[#13151a] border border-white/10 select-none"
     >
       {/* Isolated WebGL Mount Container */}
       <div ref={mountRef} className="h-full w-full" aria-label="Interactive 3D exploded CAD assembly of AEVORA" />
@@ -873,7 +873,7 @@ export const AevoraExplodedStage: React.FC<AevoraExplodedStageProps> = ({
                 </button>
               </div>
 
-              <label className="flex min-w-[125px] flex-1 items-center gap-2 text-[11px] font-mono text-zinc-300">
+              <label className="flex min-w-[96px] flex-1 items-center gap-1.5 sm:gap-2 text-[10.5px] sm:text-[11px] font-mono text-zinc-300">
                 <input
                   type="range"
                   min={0}
@@ -881,9 +881,9 @@ export const AevoraExplodedStage: React.FC<AevoraExplodedStageProps> = ({
                   value={Math.round(explodeAmount * 100)}
                   onChange={(e) => onChangeExplodeAmount(Number(e.target.value) / 100)}
                   aria-label="Explode hardware stack slider"
-                  className="h-1.5 flex-1 cursor-pointer accent-[#ff5500]"
+                  className="h-1.5 min-w-0 flex-1 cursor-pointer accent-[#ff5500]"
                 />
-                <span className="w-8 text-right tabular-nums text-white">
+                <span className="w-7 sm:w-8 shrink-0 text-right tabular-nums text-white">
                   {Math.round(explodeAmount * 100)}%
                 </span>
               </label>
@@ -908,8 +908,12 @@ export const AevoraExplodedStage: React.FC<AevoraExplodedStageProps> = ({
             </div>
 
             {/* Row 2: Clear Engineering Inspection Overlays */}
-            <div className="flex items-center justify-between gap-2 border-t border-white/8 pt-2">
-              <div className="flex flex-wrap items-center gap-1" role="group" aria-label="3D inspection overlays">
+            <div className="border-t border-white/8 pt-2">
+              <div
+                className="grid w-full grid-cols-2 gap-1 sm:flex sm:w-auto sm:flex-wrap sm:items-center"
+                role="group"
+                aria-label="3D inspection overlays"
+              >
                 <button
                   type="button"
                   onClick={() => {
@@ -917,7 +921,7 @@ export const AevoraExplodedStage: React.FC<AevoraExplodedStageProps> = ({
                     onChangeOverlayMode('inspect');
                   }}
                   aria-pressed={overlayMode === 'inspect'}
-                  className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                  className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-1.5 sm:py-1 text-[11px] font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                     overlayMode === 'inspect'
                       ? 'bg-white text-zinc-950'
                       : 'text-zinc-300 hover:bg-white/8 hover:text-white'
@@ -933,7 +937,7 @@ export const AevoraExplodedStage: React.FC<AevoraExplodedStageProps> = ({
                     onChangeOverlayMode('isolate');
                   }}
                   aria-pressed={overlayMode === 'isolate'}
-                  className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                  className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-1.5 sm:py-1 text-[11px] font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                     overlayMode === 'isolate'
                       ? 'bg-white text-zinc-950'
                       : 'text-zinc-300 hover:bg-white/8 hover:text-white'
@@ -950,7 +954,7 @@ export const AevoraExplodedStage: React.FC<AevoraExplodedStageProps> = ({
                     onSelectLayer('fan');
                   }}
                   aria-pressed={overlayMode === 'thermal'}
-                  className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                  className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-1.5 sm:py-1 text-[11px] font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                     overlayMode === 'thermal'
                       ? 'bg-[#ff5500] text-white'
                       : 'text-zinc-300 hover:bg-white/8 hover:text-white'
@@ -967,7 +971,7 @@ export const AevoraExplodedStage: React.FC<AevoraExplodedStageProps> = ({
                     onSelectLayer('acoustic');
                   }}
                   aria-pressed={overlayMode === 'acoustic'}
-                  className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                  className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-1.5 sm:py-1 text-[11px] font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                     overlayMode === 'acoustic'
                       ? 'bg-sky-500 text-zinc-950'
                       : 'text-zinc-300 hover:bg-white/8 hover:text-white'

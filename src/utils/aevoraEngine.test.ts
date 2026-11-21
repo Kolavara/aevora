@@ -8,6 +8,7 @@ import {
   estimateStorageCapacity,
   estimateTelemetry,
   evaluateExecutionReadiness,
+  getInferenceRouteMeta,
   getLvglDialAngle,
   stepLvglMode,
   synthesizeCustomHidPlan,
@@ -106,6 +107,25 @@ test('synthesizeCustomHidPlan generates OS-accurate USB HID keycodes and Android
   const androidPlan = synthesizeCustomHidPlan('Draft reply to Alex', 'android');
   assert.equal(androidPlan.requiresHid, false);
   assert.match(androidPlan.hidTranscript, /ADB_LOCAL_BRIDGE/);
+});
+
+test('getInferenceRouteMeta and synthesizeCustomHidPlan support on-device, offline LAN peer, and cloud BYOK routes', () => {
+  assert.equal(getInferenceRouteMeta('on-device').badgeText, 'LOCAL 0-CLOUD');
+  assert.equal(getInferenceRouteMeta('lan-peer').badgeText, 'LAN OFFLINE');
+  assert.equal(getInferenceRouteMeta('cloud-byok').badgeText, 'BYOK OPT-IN');
+
+  const localPlan = synthesizeCustomHidPlan('Run tests', 'macos', 'on-device');
+  assert.match(localPlan.hidTranscript, /local:\/\/jetson-orin-tensorrt/);
+  assert.equal(localPlan.steps[1].stage, 'Jetson Orin Planner');
+
+  const lanPlan = synthesizeCustomHidPlan('Refactor database query', 'macos', 'lan-peer');
+  assert.match(lanPlan.hidTranscript, /workstation\.local:11434/);
+  assert.equal(lanPlan.steps[1].stage, 'LAN Peer GPU Planner');
+  assert.match(lanPlan.hidTranscript, /0 cloud packets/);
+
+  const cloudPlan = synthesizeCustomHidPlan('Draft release summary', 'linux', 'cloud-byok');
+  assert.match(cloudPlan.hidTranscript, /User BYOK key/);
+  assert.equal(cloudPlan.steps[1].stage, 'Cloud BYOK API Planner');
 });
 
 test('validateReservationForm rejects malformed inputs and accepts valid submissions', () => {

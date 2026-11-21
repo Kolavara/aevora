@@ -363,7 +363,7 @@ export const CraftAndReserve: React.FC<CraftAndReserveProps> = ({
                 </svg>
 
                 {/* Interactive Zone Buttons */}
-                <div className="mt-4 grid w-full grid-cols-4 gap-1 rounded-xl bg-white p-1 border border-zinc-900/8">
+                <div className="mt-4 grid w-full grid-cols-2 gap-1 rounded-xl bg-white p-1 border border-zinc-900/8 sm:grid-cols-4">
                   {(
                     [
                       { id: 'diameter', label: '100mm Ø' },
@@ -379,7 +379,7 @@ export const CraftAndReserve: React.FC<CraftAndReserveProps> = ({
                         type="button"
                         onClick={() => selectBlueprintZone(z.id)}
                         aria-pressed={active}
-                        className={`rounded-lg px-1.5 py-1.5 font-mono text-[10.5px] font-medium transition-colors whitespace-nowrap text-center cursor-pointer ${
+                        className={`rounded-lg px-2 py-2 sm:px-1.5 sm:py-1.5 font-mono text-[11px] sm:text-[10.5px] font-medium transition-colors whitespace-nowrap text-center cursor-pointer ${
                           active
                             ? 'bg-zinc-900 text-white'
                             : 'text-zinc-600 hover:text-zinc-950'
@@ -650,6 +650,9 @@ export const CraftAndReserve: React.FC<CraftAndReserveProps> = ({
                         );
                       })}
                     </div>
+                    <p className="mt-2.5 text-xs leading-relaxed text-zinc-500">
+                      Every build also supports offline LAN model hosts (Ollama / vLLM / llama.cpp) and opt-in cloud models via your own API key.
+                    </p>
                   </div>
                 </div>
               </div>
@@ -717,7 +720,7 @@ export const CraftAndReserve: React.FC<CraftAndReserveProps> = ({
                 ) : (
                   <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-5">
                     {/* Live Finish Preview Header */}
-                    <div className="flex items-center gap-4 border-b border-zinc-900/10 pb-4">
+                    <div className="flex flex-wrap items-center gap-3.5 sm:flex-nowrap sm:gap-4 border-b border-zinc-900/10 pb-4">
                       <div className="h-16 w-20 shrink-0 overflow-hidden rounded-xl bg-zinc-900 border border-zinc-900/10">
                         <AnimatePresence mode="wait">
                           <motion.img

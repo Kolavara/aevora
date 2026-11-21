@@ -219,7 +219,8 @@ export const TECHNICAL_SPECS: TechnicalSpecGroup[] = [
       { label: 'AI Throughput', value: '40 TOPS (INT8) · 34.6 tok/s', note: 'Quantized Q4_K_M / FP8 via TensorRT-LLM & llama.cpp' },
       { label: 'Coprocessor', value: 'Seeed Studio XIAO RP2040', note: 'Dual Cortex-M0+ deterministic USB HID & PWM controller' },
       { label: 'Local Storage', value: '512 GB / 1 TB / 2 TB NVMe', note: 'Samsung 970 EVO Plus M.2 2280 PCIe Gen3 x4' },
-      { label: 'Operating Stack', value: 'Ubuntu 22.04 LTS + FastAPI', note: 'Open local REST/WebSocket agent runtime, zero telemetry' },
+      { label: 'Model Routing', value: 'On-Device · LAN Peer · Cloud BYOK', note: 'Local TensorRT-LLM/llama.cpp, offline LAN Ollama/vLLM host, or your own cloud API key' },
+      { label: 'Operating Stack', value: 'Ubuntu 22.04 LTS + FastAPI', note: 'Open local REST/WebSocket router with OpenAI-compatible endpoint support, zero telemetry' },
     ],
   },
   {
@@ -274,18 +275,23 @@ export const LOCAL_VS_CLOUD_ROWS: ComparisonRow[] = [
     cloudDevice: 'Requires screen-recording daemon or cloud OAuth',
   },
   {
+    criterion: 'Model Freedom & Routing',
+    aevora: 'On-device Orin, offline LAN GPU server (Ollama/vLLM), or BYOK cloud API',
+    cloudDevice: 'Locked to one vendor’s proprietary cloud endpoint',
+  },
+  {
     criterion: 'Recurring Cost',
-    aevora: '$0 / month forever — own weights on local NVMe',
-    cloudDevice: '$20–$30 / month subscription + token caps',
+    aevora: '$0 / month required — own local weights or bring your own API key',
+    cloudDevice: '$20–$30 / month mandatory subscription + token caps',
   },
   {
     criterion: 'Offline & Air-Gapped Use',
-    aevora: '100% functional offline + cordless 2S UPS battery',
-    cloudDevice: 'Unusable without live cloud API connection',
+    aevora: '100% functional offline (on-device or LAN peer) + 2S UPS battery',
+    cloudDevice: 'Unusable without live vendor cloud connection',
   },
   {
     criterion: 'Voice-to-First-Token',
-    aevora: '~140 ms local Whisper + 34.6 tok/s TensorRT-LLM',
+    aevora: '~140 ms local Whisper + 34.6 tok/s local (or LAN GPU / BYOK frontier)',
     cloudDevice: '600–1,400 ms network upload & cloud queue jitter',
   },
 ];

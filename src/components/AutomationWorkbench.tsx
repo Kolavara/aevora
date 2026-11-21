@@ -3,7 +3,10 @@ import { motion } from 'motion/react';
 import {
   AlertTriangle,
   CheckCircle2,
+  Cloud,
+  Cpu,
   Keyboard,
+  Network,
   Play,
   RotateCcw,
   Smartphone,
@@ -12,8 +15,10 @@ import {
 import { AUTOMATION_SCENARIOS, type AutomationScenario } from '../data/hardwareLayers';
 import {
   evaluateExecutionReadiness,
+  getInferenceRouteMeta,
   synthesizeCustomHidPlan,
   type HardwareState,
+  type InferenceRoute,
   type TargetOs,
 } from '../utils/aevoraEngine';
 import { playDetentClick, playSwitchSnap } from '../utils/tactileAudio';
@@ -34,12 +39,23 @@ const TARGET_OS_OPTIONS: Array<{ id: TargetOs; label: string }> = [
   { id: 'android', label: 'Android' },
 ];
 
+const INFERENCE_ROUTE_OPTIONS: Array<{
+  id: InferenceRoute;
+  label: string;
+  shortLabel: string;
+}> = [
+  { id: 'on-device', label: 'On-Device Orin', shortLabel: 'On-Device' },
+  { id: 'lan-peer', label: 'Offline LAN Rig', shortLabel: 'LAN Rig' },
+  { id: 'cloud-byok', label: 'Cloud BYOK API', shortLabel: 'Cloud BYOK' },
+];
+
 export const AutomationWorkbench: React.FC<AutomationWorkbenchProps> = ({
   hardwareState,
   soundEnabled,
   onPatchHardware,
 }) => {
   const [scenarioId, setScenarioId] = useState<string>(AUTOMATION_SCENARIOS[0].id);
+  const [inferenceRoute, setInferenceRoute] = useState<InferenceRoute>('on-device');
   const [customPrompt, setCustomPrompt] = useState<string>(
     'Open terminal, run unit tests, and copy the summary'
   );
@@ -51,17 +67,18 @@ export const AutomationWorkbench: React.FC<AutomationWorkbenchProps> = ({
   const timerRef = useRef<number | null>(null);
 
   const isCustom = scenarioId === CUSTOM_SCENARIO_ID;
+  const routeMeta = getInferenceRouteMeta(inferenceRoute);
 
   const customPlan = useMemo(
-    () => synthesizeCustomHidPlan(customPrompt, targetOs),
-    [customPrompt, targetOs]
+    () => synthesizeCustomHidPlan(customPrompt, targetOs, inferenceRoute),
+    [customPrompt, targetOs, inferenceRoute]
   );
 
   const activeWorkflow = useMemo(() => {
     if (isCustom) {
       return {
         id: CUSTOM_SCENARIO_ID,
-        title: `Custom Local Command · ${customPlan.targetLabel}`,
+        title: `Custom Command · ${customPlan.targetLabel}`,
         target: customPlan.targetLabel,
         requiresMic: customPlan.requiresMic,
         requiresHid: customPlan.requiresHid,
@@ -72,8 +89,31 @@ export const AutomationWorkbench: React.FC<AutomationWorkbenchProps> = ({
     }
     const found: AutomationScenario =
       AUTOMATION_SCENARIOS.find((s) => s.id === scenarioId) ?? AUTOMATION_SCENARIOS[0];
-    return found;
-  }, [isCustom, customPlan, scenarioId]);
+
+    if (inferenceRoute === 'on-device') {
+      return found;
+    }
+
+    const plannerStepIdx = found.id === 'android-triage' ? 2 : 1;
+    const routeHeader =
+      inferenceRoute === 'lan-peer'
+        ? 'ROUTE -> http://workstation.local:11434/v1 (LAN offline)\n'
+        : 'ROUTE -> https://api.provider/v1 (User BYOK key)\n';
+
+    return {
+      ...found,
+      hidTranscript: `${routeHeader}${found.hidTranscript}`,
+      steps: found.steps.map((step, idx) =>
+        idx === plannerStepIdx
+          ? {
+              ...step,
+              stage: routeMeta.plannerStage,
+              detail: routeMeta.plannerDetail,
+            }
+          : step
+      ),
+    };
+  }, [isCustom, customPlan, scenarioId, inferenceRoute, routeMeta]);
 
   const clearTimers = () => {
     if (timerRef.current !== null) {
@@ -217,13 +257,13 @@ export const AutomationWorkbench: React.FC<AutomationWorkbenchProps> = ({
           className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-end"
         >
           <div>
-            <div className="text-xs font-medium text-zinc-500">03. Local Agentic Orchestration</div>
+            <div className="text-xs font-medium text-zinc-500">03. Hybrid Agentic Orchestration</div>
             <h2 className="mt-2 font-display text-3xl font-semibold tracking-tight text-zinc-950 sm:text-4xl text-balance">
               Autonomous PC &amp; Android execution with zero host software
             </h2>
           </div>
           <p className="max-w-md text-sm leading-relaxed text-zinc-600">
-            Ubuntu 22.04 and an asynchronous FastAPI loop coordinate TensorRT-LLM with the XIAO RP2040, enumerating as a native USB keyboard and mouse—while obeying your physical hardware switches.
+            Ubuntu 22.04 and FastAPI run TensorRT-LLM on-device by default—or route to an offline model on another LAN machine or a cloud model via your own API key—while XIAO RP2040 executes native USB HID under your physical switches.
           </p>
         </motion.div>
 
@@ -297,11 +337,11 @@ export const AutomationWorkbench: React.FC<AutomationWorkbenchProps> = ({
             <div className="rounded-2xl border border-white/10 bg-black/35 p-4">
               {isCustom ? (
                 <div className="space-y-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <label htmlFor="custom-hid-prompt" className="text-xs font-medium text-zinc-300">
                       Target OS &amp; Spoken Command
                     </label>
-                    <div className="flex items-center gap-1 rounded-lg bg-white/6 p-0.5 border border-white/10">
+                    <div className="grid grid-cols-4 gap-1 rounded-lg bg-white/6 p-0.5 border border-white/10 sm:flex sm:items-center">
                       {TARGET_OS_OPTIONS.map((opt) => {
                         const activeOs = targetOs === opt.id;
                         return (
@@ -316,7 +356,7 @@ export const AutomationWorkbench: React.FC<AutomationWorkbenchProps> = ({
                               setBlockedError(null);
                             }}
                             aria-pressed={activeOs}
-                            className={`rounded-md px-2 py-1 text-[11px] font-medium transition-colors whitespace-nowrap cursor-pointer ${
+                            className={`rounded-md px-2 py-1.5 sm:py-1 text-center text-[11px] font-medium transition-colors whitespace-nowrap cursor-pointer ${
                               activeOs
                                 ? 'bg-white text-zinc-950'
                                 : 'text-zinc-300 hover:text-white'
@@ -380,12 +420,14 @@ export const AutomationWorkbench: React.FC<AutomationWorkbenchProps> = ({
           {/* Pipeline Trace + Live HID Output Column */}
           <div className="flex flex-col justify-between gap-5 rounded-2xl border border-white/10 bg-zinc-950/70 p-5 sm:p-7 lg:col-span-7">
             <div>
-              <div className="flex flex-wrap items-center justify-between gap-3 pb-4">
-                <div>
-                  <div className="text-xs text-zinc-400">FastAPI + TensorRT-LLM Execution Trace</div>
+              <div className="flex flex-col gap-3 pb-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <div className="text-xs text-zinc-400">
+                    FastAPI Orchestrator · {routeMeta.badgeText}
+                  </div>
                   <div className="mt-0.5 text-sm font-semibold text-white">{activeWorkflow.title}</div>
                 </div>
-                <div className="flex items-center gap-2 font-mono text-xs">
+                <div className="flex flex-wrap items-center gap-2 font-mono text-xs shrink-0">
                   <button
                     type="button"
                     onClick={() => {
@@ -430,6 +472,55 @@ export const AutomationWorkbench: React.FC<AutomationWorkbenchProps> = ({
                   transition={{ type: 'spring', stiffness: 180, damping: 24 }}
                   className="h-full w-full origin-left bg-[#ff5500]"
                 />
+              </div>
+
+              {/* Inference Backend Routing Selector */}
+              <div
+                data-testid="inference-route-selector"
+                className="mt-4 rounded-xl border border-white/10 bg-black/40 p-3"
+              >
+                <div className="flex items-center justify-between gap-2 text-[11px]">
+                  <span className="font-medium text-zinc-300">Inference Backend</span>
+                  <span className="font-mono text-zinc-500">OpenAI-Compatible Router</span>
+                </div>
+                <div className="mt-2 grid grid-cols-3 gap-1.5">
+                  {INFERENCE_ROUTE_OPTIONS.map((opt) => {
+                    const active = inferenceRoute === opt.id;
+                    const RouteIcon =
+                      opt.id === 'on-device'
+                        ? Cpu
+                        : opt.id === 'lan-peer'
+                        ? Network
+                        : Cloud;
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => {
+                          playDetentClick(soundEnabled, 1080);
+                          clearTimers();
+                          setInferenceRoute(opt.id);
+                          setActiveStepIdx(-1);
+                          setCompleted(false);
+                          setBlockedError(null);
+                        }}
+                        aria-pressed={active}
+                        className={`inline-flex items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-[11px] font-semibold transition-colors whitespace-nowrap cursor-pointer ${
+                          active
+                            ? 'border-white bg-white text-zinc-950'
+                            : 'border-white/10 bg-white/4 text-zinc-300 hover:bg-white/10 hover:text-white'
+                        }`}
+                      >
+                        <RouteIcon className="hidden h-3.5 w-3.5 shrink-0 sm:inline-block" aria-hidden="true" />
+                        <span className="sm:hidden">{opt.shortLabel}</span>
+                        <span className="hidden sm:inline">{opt.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="mt-2 font-mono text-[11px] leading-relaxed text-zinc-400">
+                  {routeMeta.endpointNote}
+                </p>
               </div>
             </div>
 
@@ -529,7 +620,7 @@ export const AutomationWorkbench: React.FC<AutomationWorkbenchProps> = ({
                 }}
               />
               <div className="relative z-10 text-[11px] text-zinc-500">Host Output Buffer (XIAO RP2040 HID)</div>
-              <pre className="relative z-10 mt-2 whitespace-pre-wrap leading-relaxed text-zinc-200">
+              <pre className="relative z-10 mt-2 overflow-x-auto whitespace-pre-wrap break-words leading-relaxed text-zinc-200">
                 {showHidOutput ? (
                   <>
                     {activeWorkflow.hidTranscript.slice(0, typedLength)}
@@ -538,9 +629,13 @@ export const AutomationWorkbench: React.FC<AutomationWorkbenchProps> = ({
                     )}
                   </>
                 ) : isRunning ? (
-                  'Preparing quantized action plan on Jetson Orin Nano...'
+                  inferenceRoute === 'on-device'
+                    ? 'Preparing quantized action plan on Jetson Orin Nano...'
+                    : inferenceRoute === 'lan-peer'
+                    ? 'Routing request over local LAN to offline workstation GPU...'
+                    : 'Querying configured BYOK cloud model for deterministic HID plan...'
                 ) : (
-                  'Ready — click Run Local Loop to observe local HID execution.'
+                  'Ready — click Run Local Loop to observe HID execution.'
                 )}
               </pre>
             </div>
@@ -553,9 +648,9 @@ export const AutomationWorkbench: React.FC<AutomationWorkbenchProps> = ({
               >
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" aria-hidden="true" />
-                  <span>Loop completed on Jetson Orin Nano · 0 bytes sent externally.</span>
+                  <span>{routeMeta.completionSummary}</span>
                 </div>
-                <span className="font-mono tabular-nums text-emerald-300">200 OK</span>
+                <span className="font-mono tabular-nums text-emerald-300 shrink-0">200 OK</span>
               </motion.div>
             )}
           </div>
