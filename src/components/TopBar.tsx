@@ -25,7 +25,7 @@ export const TopBar: React.FC<TopBarProps> = ({ onNavigate, reservedCount }) => 
 
   return (
     <header className="sticky top-0 z-40 border-b border-zinc-900/8 bg-[#f2f1ec]/88 backdrop-blur-xl">
-      <div className="mx-auto flex max-w-[1240px] items-center justify-between gap-8 px-5 py-3.5 sm:px-8">
+      <div className="mx-auto flex max-w-[1240px] items-center justify-between gap-4 lg:gap-8 px-5 py-3.5 sm:px-8">
         <a
           href="#top"
           className="font-display text-lg font-semibold tracking-tight text-zinc-900 whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#ff5500]"
@@ -35,7 +35,7 @@ export const TopBar: React.FC<TopBarProps> = ({ onNavigate, reservedCount }) => 
 
         <nav
           aria-label="Primary"
-          className="hidden md:flex items-center gap-7 text-sm font-medium text-zinc-600"
+          className="hidden md:flex items-center gap-4 lg:gap-7 text-sm font-medium text-zinc-600"
         >
           {NAV_LINKS.map((link) => (
             <a
@@ -57,9 +57,16 @@ export const TopBar: React.FC<TopBarProps> = ({ onNavigate, reservedCount }) => 
             type="button"
             strength={5}
             onClick={() => handleJump('reserve')}
-            className="rounded-xl bg-zinc-900 px-4 py-2 text-xs font-semibold text-white transition-colors duration-150 hover:bg-zinc-800 whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#ff5500] cursor-pointer"
+            className="rounded-xl bg-zinc-900 px-3.5 sm:px-4 py-2 text-xs font-semibold text-white transition-colors duration-150 hover:bg-zinc-800 whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#ff5500] cursor-pointer"
           >
-            {reservedCount > 0 ? `Reserved (${reservedCount})` : 'Reserve Unit'}
+            {reservedCount > 0 ? (
+              `Reserved (${reservedCount})`
+            ) : (
+              <>
+                <span className="lg:hidden">Reserve</span>
+                <span className="hidden lg:inline">Configure &amp; Reserve</span>
+              </>
+            )}
           </MagneticButton>
 
           <button

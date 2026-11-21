@@ -44,8 +44,13 @@ export interface BuildConfig {
 }
 
 export interface BuildSummary {
+  basePrice: number;
+  finishDelta: number;
+  storageDelta: number;
+  bundleDelta: number;
   unitPrice: number;
   totalPrice: number;
+  breakdownFormula: string;
   storageLabel: string;
   finishLabel: string;
   bundleLabel: string;
@@ -114,15 +119,31 @@ export function calculateBuildSummary(config: BuildConfig): BuildSummary {
   const safeQty = Math.max(1, Math.min(10, Math.floor(config.quantity)));
   const storage = STORAGE_SURCHARGE[config.storage];
   const finish = FINISH_META[config.finish];
-  const unitPrice = BASE_UNIT_PRICE + storage.price + finish.price;
+  const bundleDelta = 0;
+  const unitPrice = BASE_UNIT_PRICE + storage.price + finish.price + bundleDelta;
+  const totalPrice = unitPrice * safeQty;
+
+  const baseFormula = `$${BASE_UNIT_PRICE} + $${finish.price} + $${storage.price} + $${bundleDelta}`;
+  const breakdownFormula =
+    safeQty > 1
+      ? `(${baseFormula}) × ${safeQty} = $${totalPrice} · Shipping Included`
+      : `${baseFormula} = $${totalPrice} · Shipping Included`;
 
   return {
+    basePrice: BASE_UNIT_PRICE,
+    finishDelta: finish.price,
+    storageDelta: storage.price,
+    bundleDelta,
     unitPrice,
-    totalPrice: unitPrice * safeQty,
+    totalPrice,
+    breakdownFormula,
     storageLabel: storage.label,
     finishLabel: finish.label,
     bundleLabel: BUNDLE_META[config.bundle].label,
-    estimatedShipWindow: config.storage === '2tb' ? 'Batch 02 · Late Q1' : 'Batch 01 · Ships in 3 weeks',
+    estimatedShipWindow:
+      config.storage === '2tb'
+        ? 'Early Access · Batch 02 Allocation'
+        : 'Early Access · Batch 01 Allocation',
   };
 }
 

@@ -24,7 +24,7 @@ const baseState: HardwareState = {
   ringAccent: 'amber',
 };
 
-test('calculateBuildSummary computes unit and quantity totals accurately', () => {
+test('calculateBuildSummary computes unit, itemized deltas, and quantity totals accurately', () => {
   const summary = calculateBuildSummary({
     finish: 'charcoal',
     storage: '1tb',
@@ -33,9 +33,15 @@ test('calculateBuildSummary computes unit and quantity totals accurately', () =>
   });
 
   // 649 base + 70 (1tb) + 20 (charcoal) = 739 * 2 = 1478
+  assert.equal(summary.basePrice, 649);
+  assert.equal(summary.finishDelta, 20);
+  assert.equal(summary.storageDelta, 70);
+  assert.equal(summary.bundleDelta, 0);
   assert.equal(summary.unitPrice, 739);
   assert.equal(summary.totalPrice, 1478);
   assert.equal(summary.storageLabel, '1 TB Samsung 970 EVO Plus NVMe');
+  assert.match(summary.breakdownFormula, /\$649 \+ \$20 \+ \$70 \+ \$0.*= \$1478/);
+  assert.match(summary.estimatedShipWindow, /Early Access/);
 });
 
 test('estimateStorageCapacity computes realistic quantized LLM headroom across NVMe tiers', () => {

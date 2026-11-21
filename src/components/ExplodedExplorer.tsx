@@ -231,8 +231,8 @@ export const ExplodedExplorer: React.FC<ExplodedExplorerProps> = ({
                   Filtering: {matchingLayers.length} of 9 layers
                 </span>
               ) : (
-                <span className="hidden sm:inline font-mono text-[11px] text-zinc-500 whitespace-nowrap">
-                  Drag to orbit · Click part
+                <span className="font-mono text-[11px] text-zinc-500 whitespace-nowrap">
+                  Drag to orbit · Pinch to zoom · Tap part
                 </span>
               )}
             </div>

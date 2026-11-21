@@ -56,6 +56,20 @@ export const TactilePrivacyTwin: React.FC<TactilePrivacyTwinProps> = ({
   const panAccumRef = useRef<number>(0);
   const panSwitchAtRef = useRef<number>(0);
 
+  const [isDesktopInteractive, setIsDesktopInteractive] = useState<boolean>(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return true;
+    return window.matchMedia('(min-width: 1024px) and (pointer: fine)').matches;
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const mq = window.matchMedia('(min-width: 1024px) and (pointer: fine)');
+    const sync = () => setIsDesktopInteractive(mq.matches);
+    sync();
+    mq.addEventListener?.('change', sync);
+    return () => mq.removeEventListener?.('change', sync);
+  }, []);
+
   const dialX = useMotionValue(0);
   const dialY = useMotionValue(0);
   const smoothDialX = useSpring(dialX, { stiffness: 180, damping: 24 });
@@ -67,6 +81,7 @@ export const TactilePrivacyTwin: React.FC<TactilePrivacyTwinProps> = ({
   const bezelSheen = useMotionTemplate`radial-gradient(240px circle at ${bezelLightX}% ${bezelLightY}%, rgba(255,255,255,0.45), transparent 65%)`;
 
   const handleDialPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDesktopInteractive || e.pointerType !== 'mouse') return;
     const rect = e.currentTarget.getBoundingClientRect();
     dialX.set((e.clientX - rect.left) / rect.width - 0.5);
     dialY.set((e.clientY - rect.top) / rect.height - 0.5);
@@ -185,16 +200,22 @@ export const TactilePrivacyTwin: React.FC<TactilePrivacyTwinProps> = ({
 
             <motion.div
               data-testid="lvgl-hardware-dial"
-              style={{
-                perspective: 900,
-                rotateX: dialRotateX,
-                rotateY: dialRotateY,
-                touchAction: 'pan-y',
-              }}
+              style={
+                isDesktopInteractive
+                  ? {
+                      perspective: 900,
+                      rotateX: dialRotateX,
+                      rotateY: dialRotateY,
+                      touchAction: 'pan-y',
+                    }
+                  : { touchAction: 'pan-y' }
+              }
               onPanStart={() => {
+                if (!isDesktopInteractive) return;
                 panAccumRef.current = 0;
               }}
               onPan={(_e, info) => {
+                if (!isDesktopInteractive) return;
                 panAccumRef.current += info.delta.x;
                 if (Math.abs(panAccumRef.current) >= 48) {
                   const dir = panAccumRef.current > 0 ? 1 : -1;
@@ -203,7 +224,9 @@ export const TactilePrivacyTwin: React.FC<TactilePrivacyTwinProps> = ({
                   setMode(stepLvglMode(hardwareState.lvglMode, dir));
                 }
               }}
-              className="relative z-10 flex aspect-square w-full max-w-[252px] min-[380px]:max-w-[274px] sm:max-w-[336px] items-center justify-center rounded-full bg-gradient-to-b from-[#e3e3df] via-[#c2c2bc] to-[#989891] p-[4.5%] ring-1 ring-white/55 shadow-[0_26px_52px_-14px_rgba(24,24,27,0.28),inset_0_2px_4px_rgba(255,255,255,0.8)] will-change-transform cursor-grab active:cursor-grabbing"
+              className={`relative z-10 flex aspect-square w-full max-w-[252px] min-[380px]:max-w-[274px] sm:max-w-[336px] items-center justify-center rounded-full bg-gradient-to-b from-[#e3e3df] via-[#c2c2bc] to-[#989891] p-[4.5%] ring-1 ring-white/55 shadow-[0_26px_52px_-14px_rgba(24,24,27,0.28),inset_0_2px_4px_rgba(255,255,255,0.8)] will-change-transform ${
+                isDesktopInteractive ? 'cursor-grab active:cursor-grabbing' : ''
+              }`}
             >
               {/* Subtle CNC Machined Concentric Lathe Texture */}
               <div
@@ -518,6 +541,57 @@ export const TactilePrivacyTwin: React.FC<TactilePrivacyTwinProps> = ({
               </button>
             </div>
 
+            {/* Mobile/Tablet Quick Hardware Toggle Bar right below the IPS ring */}
+            <div
+              data-testid="mobile-quick-hardware-toggles"
+              className="relative z-10 mt-5 grid w-full max-w-[340px] grid-cols-2 gap-2 lg:hidden"
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  const next = !hardwareState.micEnabled;
+                  playSwitchSnap(soundEnabled, next);
+                  setWakeTestStatus('idle');
+                  onChange({ ...hardwareState, micEnabled: next });
+                }}
+                aria-pressed={hardwareState.micEnabled}
+                className={`flex flex-col items-start rounded-xl border px-3 py-2.5 text-left transition-colors cursor-pointer ${
+                  hardwareState.micEnabled
+                    ? 'border-zinc-900 bg-zinc-900 text-white'
+                    : 'border-red-600 bg-red-600 text-white'
+                }`}
+              >
+                <span className="font-mono text-[10px] uppercase tracking-wide opacity-80">
+                  Mic Kill
+                </span>
+                <span className="mt-0.5 text-xs font-semibold">
+                  {hardwareState.micEnabled ? 'Active (Closed)' : 'Cut (Open)'}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const next = !hardwareState.hidConnected;
+                  playSwitchSnap(soundEnabled, next);
+                  onChange({ ...hardwareState, hidConnected: next });
+                }}
+                aria-pressed={hardwareState.hidConnected}
+                className={`flex flex-col items-start rounded-xl border px-3 py-2.5 text-left transition-colors cursor-pointer ${
+                  hardwareState.hidConnected
+                    ? 'border-[#ff5500] bg-[#ff5500] text-white'
+                    : 'border-zinc-900/15 bg-white text-zinc-900'
+                }`}
+              >
+                <span className="font-mono text-[10px] uppercase tracking-wide opacity-80">
+                  PC HID Bridge
+                </span>
+                <span className="mt-0.5 text-xs font-semibold">
+                  {hardwareState.hidConnected ? 'Connected' : 'Air-Gapped'}
+                </span>
+              </button>
+            </div>
+
             <p className="relative z-10 mt-3 text-center text-xs text-zinc-600">
               {wakeTestStatus !== 'idle'
                 ? wakeTestStatus === 'blocked' && !hardwareState.micEnabled
@@ -525,7 +599,9 @@ export const TactilePrivacyTwin: React.FC<TactilePrivacyTwinProps> = ({
                   : wakeTestStatus === 'capturing'
                   ? 'ReSpeaker captured wake-word locally in 140 ms...'
                   : 'Answered on-device via TensorRT-LLM (0 bytes sent externally).'
-                : 'Drag aluminum bezel horizontally to cycle states · Tap IPS glass for wake-word'}
+                : isDesktopInteractive
+                ? 'Drag aluminum bezel horizontally to cycle states · Tap IPS glass for wake-word'
+                : 'Tap IPS glass for wake-word · Toggle switches or swipe states below'}
             </p>
           </div>
 
@@ -533,7 +609,10 @@ export const TactilePrivacyTwin: React.FC<TactilePrivacyTwinProps> = ({
           <div className="flex flex-col gap-6 lg:col-span-6">
             <div>
               <div className="text-xs font-semibold text-zinc-900">LVGL System State</div>
-              <div className="mt-2.5 flex flex-wrap gap-1.5 rounded-xl bg-[#f2f1ec] p-1.5 border border-zinc-900/8">
+              <div
+                data-testid="lvgl-state-tabs"
+                className="mt-2.5 flex flex-nowrap overflow-x-auto gap-1.5 rounded-xl bg-[#f2f1ec] p-1.5 border border-zinc-900/8 lg:flex-wrap lg:overflow-visible"
+              >
                 {LVGL_MODES.map((mode) => {
                   const active = hardwareState.lvglMode === mode.id;
                   return (

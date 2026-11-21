@@ -96,6 +96,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
   const specularSheen = useMotionTemplate`radial-gradient(420px circle at ${sheenX}% ${sheenY}%, ${sheenColor}, transparent 68%)`;
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType !== 'mouse') return;
     const rect = e.currentTarget.getBoundingClientRect();
     const nx = (e.clientX - rect.left) / rect.width - 0.5;
     const ny = (e.clientY - rect.top) / rect.height - 0.5;
@@ -140,11 +141,22 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
                 Own the agent. Zero cloud lock-in.
               </motion.h1>
 
+              <motion.div
+                initial={{ opacity: 0.92, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, delay: 0.11, ease: [0.16, 1, 0.3, 1] }}
+                className="mt-3.5 flex flex-wrap items-center gap-2 font-mono text-xs font-medium text-zinc-700 tabular-nums"
+              >
+                <span className="font-semibold text-zinc-950">Starting at $649</span>
+                <span aria-hidden="true" className="text-zinc-400">·</span>
+                <span className="text-[#ff5500]">Early Access</span>
+              </motion.div>
+
               <motion.p
                 initial={{ opacity: 0.92, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.44, delay: 0.14, ease: [0.16, 1, 0.3, 1] }}
-                className="mt-5 max-w-xl text-base leading-relaxed text-zinc-600"
+                className="mt-4 max-w-xl text-base leading-relaxed text-zinc-600"
               >
                 AEVORA is a 100 mm cylindrical desktop companion powered by an NVIDIA Jetson Orin Nano and XIAO RP2040 coprocessor. Run quantized LLMs on-device, offload offline to another machine on your LAN, or connect to cloud models with your own API key—while keeping physical mic switches and native USB HID under your control.
               </motion.p>
@@ -226,7 +238,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
                   }}
                   className="inline-flex items-center gap-2 rounded-xl bg-[#ff5500] px-6 py-3 text-sm font-semibold text-white transition-colors duration-150 hover:bg-[#e54d00] whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900"
                 >
-                  <span>Configure Aevora</span>
+                  <span>Configure &amp; Reserve</span>
                   <ArrowDownRight className="h-4 w-4" aria-hidden="true" />
                 </MagneticButton>
 

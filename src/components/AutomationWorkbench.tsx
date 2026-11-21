@@ -3,6 +3,8 @@ import { motion } from 'motion/react';
 import {
   AlertTriangle,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   Cloud,
   Cpu,
   Keyboard,
@@ -56,6 +58,7 @@ export const AutomationWorkbench: React.FC<AutomationWorkbenchProps> = ({
 }) => {
   const [scenarioId, setScenarioId] = useState<string>(AUTOMATION_SCENARIOS[0].id);
   const [inferenceRoute, setInferenceRoute] = useState<InferenceRoute>('on-device');
+  const [showRouteDetails, setShowRouteDetails] = useState<boolean>(false);
   const [customPrompt, setCustomPrompt] = useState<string>(
     'Open terminal, run unit tests, and copy the summary'
   );
@@ -323,11 +326,11 @@ export const AutomationWorkbench: React.FC<AutomationWorkbenchProps> = ({
                 }`}
               >
                 <div className="flex items-center justify-between gap-3">
-                  <span className="text-sm font-semibold text-white">Custom Local Command</span>
+                  <span className="text-sm font-semibold text-white">Build Custom Command</span>
                   <Keyboard className="h-4 w-4 text-[#ff7a33] shrink-0" aria-hidden="true" />
                 </div>
                 <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-zinc-400">
-                  <span>Type your own prompt</span>
+                  <span>Open custom prompt editor</span>
                   <span aria-hidden="true">·</span>
                   <span>Live RP2040 HID keycode synthesis</span>
                 </div>
@@ -474,14 +477,29 @@ export const AutomationWorkbench: React.FC<AutomationWorkbenchProps> = ({
                 />
               </div>
 
-              {/* Inference Backend Routing Selector */}
+              {/* Inference Backend Routing Selector with Progressive Detail Disclosure */}
               <div
                 data-testid="inference-route-selector"
                 className="mt-4 rounded-xl border border-white/10 bg-black/40 p-3"
               >
                 <div className="flex items-center justify-between gap-2 text-[11px]">
                   <span className="font-medium text-zinc-300">Inference Backend</span>
-                  <span className="font-mono text-zinc-500">OpenAI-Compatible Router</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      playDetentClick(soundEnabled, 980);
+                      setShowRouteDetails((prev) => !prev);
+                    }}
+                    aria-expanded={showRouteDetails}
+                    className="inline-flex items-center gap-1 font-mono text-[11px] text-zinc-400 hover:text-white transition-colors whitespace-nowrap cursor-pointer"
+                  >
+                    <span>{showRouteDetails ? 'Hide routing guide' : 'Compare routing'}</span>
+                    {showRouteDetails ? (
+                      <ChevronUp className="h-3 w-3" aria-hidden="true" />
+                    ) : (
+                      <ChevronDown className="h-3 w-3" aria-hidden="true" />
+                    )}
+                  </button>
                 </div>
                 <div className="mt-2 grid grid-cols-3 gap-1.5">
                   {INFERENCE_ROUTE_OPTIONS.map((opt) => {
@@ -521,6 +539,23 @@ export const AutomationWorkbench: React.FC<AutomationWorkbenchProps> = ({
                 <p className="mt-2 font-mono text-[11px] leading-relaxed text-zinc-400">
                   {routeMeta.endpointNote}
                 </p>
+
+                {showRouteDetails && (
+                  <div className="mt-3 space-y-2 border-t border-white/10 pt-3 text-xs leading-relaxed text-zinc-300">
+                    <div>
+                      <span className="font-semibold text-white">On-Device Orin:</span>{' '}
+                      Process locally on AEVORA (offline, zero cloud round-trip).
+                    </div>
+                    <div>
+                      <span className="font-semibold text-white">Offline LAN Rig:</span>{' '}
+                      Offload larger models to a home GPU workstation over local LAN (Ollama / vLLM).
+                    </div>
+                    <div>
+                      <span className="font-semibold text-white">Cloud BYOK API:</span>{' '}
+                      Escalate to frontier cloud models with your own API key (zero middleman storage).
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

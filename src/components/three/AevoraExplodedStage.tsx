@@ -250,7 +250,13 @@ export const AevoraExplodedStage: React.FC<AevoraExplodedStageProps> = ({
     controls.maxDistance = 8.5;
     controls.minPolarAngle = 0.12;
     controls.maxPolarAngle = Math.PI * 0.54;
+    controls.touches = {
+      ONE: THREE.TOUCH.ROTATE,
+      TWO: THREE.TOUCH.DOLLY_ROTATE,
+    };
     controls.update();
+    // Allow vertical page scrolling on mobile while keeping horizontal drag orbit & two-finger pinch zoom
+    renderer.domElement.style.touchAction = 'pan-y';
 
     // Warm key / cool fill lighting rig + studio softbox panels on GPU
     const hemiLight = new THREE.HemisphereLight(0xc8dcff, 0x26211c, 0.72);
@@ -369,6 +375,7 @@ export const AevoraExplodedStage: React.FC<AevoraExplodedStageProps> = ({
     };
 
     const handlePointerMove = (e: PointerEvent) => {
+      if (e.pointerType !== 'mouse') return;
       const now = performance.now();
       if (now - lastHoverCheck < 55) return;
       lastHoverCheck = now;
@@ -785,14 +792,14 @@ export const AevoraExplodedStage: React.FC<AevoraExplodedStageProps> = ({
       <div ref={mountRef} className="h-full w-full" aria-label="Interactive 3D exploded CAD assembly of AEVORA" />
 
       {/* Minimal Top Spec Readout */}
-      <div className="pointer-events-none absolute top-3.5 left-4 right-4 flex items-start justify-between gap-3">
-        <div className="rounded-lg bg-[#13151a]/90 px-3 py-2 border border-white/10">
-          <div className="font-mono text-[10px] tracking-wide text-zinc-400">
+      <div className="pointer-events-none absolute top-3.5 left-3.5 right-3.5 sm:left-4 sm:right-4 flex items-start justify-between gap-2.5 sm:gap-3">
+        <div className="min-w-0 max-w-[66%] sm:max-w-[72%] rounded-lg bg-[#13151a]/90 px-3 py-2 border border-white/10">
+          <div className="truncate font-mono text-[10px] tracking-wide text-zinc-400">
             {hoveredLayerMeta
-              ? `Click to inspect · Layer ${hoveredLayerMeta.index}`
+              ? `Inspect · Layer ${hoveredLayerMeta.index}`
               : `Active · Layer ${activeLayerMeta.index}`}
           </div>
-          <div className="mt-0.5 text-xs font-semibold text-white">
+          <div className="mt-0.5 truncate text-xs font-semibold text-white">
             {(hoveredLayerMeta ?? activeLayerMeta).name}
           </div>
         </div>

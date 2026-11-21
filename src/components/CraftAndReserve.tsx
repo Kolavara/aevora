@@ -37,8 +37,8 @@ const BLUEPRINT_TOLERANCES: Record<BlueprintZone, { label: string; spec: string 
     spec: 'CNC 6061 Aluminum · ±0.05 mm wall concentricity',
   },
   display: {
-    label: '2.4" Optical Glass Crown',
-    spec: '360° optical diffuser + top alignment notch',
+    label: '2.4" Circular IPS Display',
+    spec: '480×480 optically bonded glass · 60 Hz LVGL UI',
   },
   height: {
     label: '95.0 mm Standing Profile',
@@ -62,9 +62,9 @@ const GALLERY_ITEMS = [
     detail: 'Precision-milled vertical perimeter intake slots drawing cool air past the battery bay.',
   },
   {
-    src: '/src/assets/images/aevora_macro_usbc_1795193371488.jpg',
+    src: '/src/assets/images/aevora_macro_usbc_v2_1795248346680.jpg',
     title: 'Recessed USB-C PD & Host Bus',
-    detail: 'Flush-machined USB-C boss with recessed alignment bevel and braided cable clearance.',
+    detail: 'Flush CNC USB-C boss with inline charge status LED set cleanly between lower intake vents.',
   },
   {
     src: '/src/assets/images/aevora_desk_setup_1794985692176.jpg',
@@ -77,7 +77,7 @@ const FINISH_OPTIONS: Array<{ id: ChassisFinish; label: string; note: string; im
   {
     id: 'silver',
     label: 'Anodized Raw Silver',
-    note: 'Bead-blasted aluminum',
+    note: 'Bead-blasted aluminum (+$0)',
     img: '/src/assets/images/hero_aevora_studio_1794985690652.jpg',
   },
   {
@@ -89,15 +89,15 @@ const FINISH_OPTIONS: Array<{ id: ChassisFinish; label: string; note: string; im
 ];
 
 const STORAGE_OPTIONS: Array<{ id: StorageTier; label: string }> = [
-  { id: '512gb', label: '512 GB NVMe' },
+  { id: '512gb', label: '512 GB NVMe (+$0)' },
   { id: '1tb', label: '1 TB NVMe (+$70)' },
   { id: '2tb', label: '2 TB NVMe (+$160)' },
 ];
 
 const BUNDLE_OPTIONS: Array<{ id: ModelBundle; label: string }> = [
-  { id: 'qwen-coder', label: 'Qwen-2.5 7B Coder' },
-  { id: 'llama-general', label: 'Llama-3.2 8B + FastAPI' },
-  { id: 'voice-suite', label: 'Whisper + Android Bridge' },
+  { id: 'qwen-coder', label: 'Qwen-2.5 7B Coder (+$0)' },
+  { id: 'llama-general', label: 'Llama-3.2 8B + FastAPI (+$0)' },
+  { id: 'voice-suite', label: 'Whisper + Android Bridge (+$0)' },
 ];
 
 export const CraftAndReserve: React.FC<CraftAndReserveProps> = ({
@@ -110,6 +110,7 @@ export const CraftAndReserve: React.FC<CraftAndReserveProps> = ({
   const [storage, setStorage] = useState<StorageTier>('1tb');
   const [bundle, setBundle] = useState<ModelBundle>('qwen-coder');
   const [quantity, setQuantity] = useState<number>(1);
+  const [activeConfigStep, setActiveConfigStep] = useState<1 | 2 | 3>(1);
   const [blueprintZone, setBlueprintZone] = useState<BlueprintZone>('diameter');
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
   const [copiedSpec, setCopiedSpec] = useState(false);
@@ -243,46 +244,100 @@ export const CraftAndReserve: React.FC<CraftAndReserveProps> = ({
             >
               <div className="flex flex-1 flex-col items-center justify-center rounded-2xl bg-[#f3f2ee] p-6">
                 <svg
-                  viewBox="0 0 260 310"
-                  className="w-full max-w-[240px] h-auto"
+                  viewBox="0 0 264 314"
+                  className="w-full max-w-[244px] h-auto"
                   role="img"
                   aria-label="Interactive orthographic blueprint of AEVORA measuring 100mm diameter by 95mm height"
                 >
                   {/* Top View */}
-                  <text x="16" y="20" fontSize="9" fontFamily="JetBrains Mono, monospace" fill="#71717a">
+                  <text
+                    x="14"
+                    y="18"
+                    fontSize="9"
+                    fontFamily="JetBrains Mono, monospace"
+                    fill={blueprintZone === 'diameter' || blueprintZone === 'display' ? '#18181b' : '#71717a'}
+                    fontWeight={blueprintZone === 'diameter' || blueprintZone === 'display' ? '600' : '400'}
+                  >
                     TOP VIEW
                   </text>
+
+                  {/* Dashed outer tolerance ring shown only when 100mm Diameter is active */}
+                  {blueprintZone === 'diameter' && (
+                    <circle
+                      cx="108"
+                      cy="94"
+                      r="73"
+                      fill="none"
+                      stroke="#ff5500"
+                      strokeWidth="1"
+                      strokeDasharray="3 3"
+                      opacity="0.65"
+                      className="pointer-events-none"
+                    />
+                  )}
+
+                  {/* Outer 100mm Cylinder Perimeter */}
                   <circle
-                    cx="110"
-                    cy="92"
-                    r="68"
-                    fill="#d6d5d0"
-                    stroke={blueprintZone === 'diameter' ? '#ff5500' : '#18181b'}
-                    strokeWidth={blueprintZone === 'diameter' ? '2.5' : '1.5'}
-                    className="cursor-pointer transition-all"
+                    cx="108"
+                    cy="94"
+                    r="67"
+                    fill={blueprintZone === 'diameter' ? '#e5e3dc' : '#d8d7d2'}
+                    stroke={blueprintZone === 'diameter' ? '#ff5500' : '#52525b'}
+                    strokeWidth={blueprintZone === 'diameter' ? '2.6' : '1.4'}
+                    className="cursor-pointer transition-all duration-200"
                     onClick={() => selectBlueprintZone('diameter')}
                   />
+
+                  {/* Recessed 360° LED Light-Guide Channel (Distinct from IPS screen — always neutral CAD groove) */}
                   <circle
-                    cx="110"
-                    cy="92"
-                    r="56"
+                    cx="108"
+                    cy="94"
+                    r="55"
                     fill="none"
-                    stroke="#ff5500"
-                    strokeWidth={blueprintZone === 'display' ? '6.5' : '5'}
-                    className="cursor-pointer transition-all"
-                    onClick={() => selectBlueprintZone('display')}
+                    stroke="#a1a09a"
+                    strokeWidth="3"
+                    className="pointer-events-none"
                   />
+
+                  {/* 2.4" Circular IPS Display Screen */}
                   <circle
-                    cx="110"
-                    cy="92"
-                    r="46"
-                    fill="#141416"
-                    className="cursor-pointer"
+                    cx="108"
+                    cy="94"
+                    r="45"
+                    fill={blueprintZone === 'display' ? '#1f1612' : '#141416'}
+                    stroke={blueprintZone === 'display' ? '#ff5500' : '#3f3f46'}
+                    strokeWidth={blueprintZone === 'display' ? '2.8' : '1'}
+                    className="cursor-pointer transition-all duration-200"
                     onClick={() => selectBlueprintZone('display')}
                   />
+                  {blueprintZone === 'display' && (
+                    <g className="pointer-events-none">
+                      {/* Inner active IPS pixel boundary & diagonal diameter callout */}
+                      <circle
+                        cx="108"
+                        cy="94"
+                        r="38"
+                        fill="rgba(255, 85, 0, 0.14)"
+                        stroke="#ff5500"
+                        strokeWidth="1.1"
+                        strokeDasharray="3 2.5"
+                      />
+                      <line
+                        x1="82"
+                        y1="120"
+                        x2="134"
+                        y2="68"
+                        stroke="#ff5500"
+                        strokeWidth="1"
+                        opacity="0.45"
+                      />
+                      <circle cx="82" cy="120" r="2" fill="#ff5500" />
+                      <circle cx="134" cy="68" r="2" fill="#ff5500" />
+                    </g>
+                  )}
                   <text
-                    x="110"
-                    y="96"
+                    x="108"
+                    y={blueprintZone === 'display' ? '92' : '98'}
                     textAnchor="middle"
                     fontSize="11"
                     fontWeight="600"
@@ -292,72 +347,190 @@ export const CraftAndReserve: React.FC<CraftAndReserveProps> = ({
                   >
                     Aevora
                   </text>
+                  {blueprintZone === 'display' && (
+                    <text
+                      x="108"
+                      y="105"
+                      textAnchor="middle"
+                      fontSize="7.5"
+                      fontWeight="600"
+                      fontFamily="JetBrains Mono, monospace"
+                      fill="#ff7a33"
+                      className="pointer-events-none"
+                    >
+                      2.4&quot; IPS
+                    </text>
+                  )}
+
                   {/* Diameter Callout */}
-                  <line x1="194" y1="24" x2="194" y2="160" stroke={blueprintZone === 'diameter' ? '#ff5500' : '#71717a'} strokeWidth="1.25" />
-                  <line x1="184" y1="24" x2="198" y2="24" stroke={blueprintZone === 'diameter' ? '#ff5500' : '#71717a'} strokeWidth="1.25" />
-                  <line x1="184" y1="160" x2="198" y2="160" stroke={blueprintZone === 'diameter' ? '#ff5500' : '#71717a'} strokeWidth="1.25" />
-                  <text x="202" y="90" fontSize="11" fontWeight="600" fontFamily="JetBrains Mono, monospace" fill="#18181b">
+                  <line
+                    x1="194"
+                    y1="27"
+                    x2="194"
+                    y2="161"
+                    stroke={blueprintZone === 'diameter' ? '#ff5500' : '#a1a1aa'}
+                    strokeWidth={blueprintZone === 'diameter' ? '1.6' : '1.15'}
+                  />
+                  <line
+                    x1="184"
+                    y1="27"
+                    x2="198"
+                    y2="27"
+                    stroke={blueprintZone === 'diameter' ? '#ff5500' : '#a1a1aa'}
+                    strokeWidth={blueprintZone === 'diameter' ? '1.6' : '1.15'}
+                  />
+                  <line
+                    x1="184"
+                    y1="161"
+                    x2="198"
+                    y2="161"
+                    stroke={blueprintZone === 'diameter' ? '#ff5500' : '#a1a1aa'}
+                    strokeWidth={blueprintZone === 'diameter' ? '1.6' : '1.15'}
+                  />
+                  <text
+                    x="203"
+                    y="92"
+                    fontSize="11"
+                    fontWeight="600"
+                    fontFamily="JetBrains Mono, monospace"
+                    fill={blueprintZone === 'diameter' ? '#ff5500' : '#52525b'}
+                  >
                     100 mm
                   </text>
-                  <text x="202" y="103" fontSize="8" fontFamily="JetBrains Mono, monospace" fill="#71717a">
+                  <text
+                    x="203"
+                    y="105"
+                    fontSize="8"
+                    fontFamily="JetBrains Mono, monospace"
+                    fill={blueprintZone === 'diameter' ? '#ff5500' : '#a1a1aa'}
+                  >
                     DIAMETER
                   </text>
 
                   {/* Front View */}
-                  <text x="16" y="192" fontSize="9" fontFamily="JetBrains Mono, monospace" fill="#71717a">
+                  <text
+                    x="14"
+                    y="194"
+                    fontSize="9"
+                    fontFamily="JetBrains Mono, monospace"
+                    fill={blueprintZone === 'height' || blueprintZone === 'intake' ? '#18181b' : '#71717a'}
+                    fontWeight={blueprintZone === 'height' || blueprintZone === 'intake' ? '600' : '400'}
+                  >
                     FRONT VIEW
                   </text>
+
+                  {/* 95mm Outer Cylinder Elevation */}
                   <rect
-                    x="42"
-                    y="208"
+                    x="40"
+                    y="210"
                     width="136"
                     height="82"
                     rx="10"
-                    fill="#d6d5d0"
-                    stroke={blueprintZone === 'height' ? '#ff5500' : '#18181b'}
-                    strokeWidth={blueprintZone === 'height' ? '2.5' : '1.5'}
-                    className="cursor-pointer transition-all"
+                    fill={blueprintZone === 'height' ? '#e5e3dc' : '#d8d7d2'}
+                    stroke={blueprintZone === 'height' ? '#ff5500' : '#52525b'}
+                    strokeWidth={blueprintZone === 'height' ? '2.6' : '1.4'}
+                    className="cursor-pointer transition-all duration-200"
                     onClick={() => selectBlueprintZone('height')}
                   />
+
+                  {/* Top Optical Glass Crown Slab */}
                   <rect
-                    x="64"
-                    y="202"
+                    x="62"
+                    y="204"
                     width="92"
                     height="6"
                     rx="2"
-                    fill="#141416"
-                    className="cursor-pointer"
+                    fill={blueprintZone === 'display' ? '#ff5500' : '#18181b'}
+                    className="cursor-pointer transition-all duration-200"
                     onClick={() => selectBlueprintZone('display')}
                   />
-                  <line x1="42" y1="242" x2="178" y2="242" stroke="#71717a" strokeWidth="1" />
-                  <rect x="108" y="208" width="4" height="12" fill="#ff5500" />
-                  {/* Clickable Thermal Vent Slots Zone */}
+
+                  {/* Machined Chassis Parting Seam */}
+                  <line x1="40" y1="244" x2="176" y2="244" stroke="#a1a1aa" strokeWidth="1" />
+
+                  {/* Front Alignment Notch (Chassis registration groove — neutral CAD detail) */}
+                  <rect
+                    x="106"
+                    y="210"
+                    width="4"
+                    height="12"
+                    rx="1"
+                    fill="#71717a"
+                    className="pointer-events-none"
+                  />
+
+                  {/* Clickable Thermal Intake Slots Zone */}
                   <g
                     className="cursor-pointer"
                     onClick={() => selectBlueprintZone('intake')}
                   >
-                    <rect x="48" y="260" width="124" height="24" fill="transparent" />
-                    {[52, 62, 72, 82, 92, 102, 112, 122, 132, 142, 152, 162].map((vx) => (
+                    <rect
+                      x="45"
+                      y="262"
+                      width="126"
+                      height="24"
+                      rx="5"
+                      fill={blueprintZone === 'intake' ? 'rgba(255, 85, 0, 0.08)' : 'transparent'}
+                      stroke={blueprintZone === 'intake' ? '#ff5500' : 'transparent'}
+                      strokeWidth="1.2"
+                      strokeDasharray="3 2"
+                    />
+                    {[50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160].map((vx) => (
                       <rect
                         key={vx}
                         x={vx}
-                        y="264"
+                        y="266"
                         width="4"
                         height="16"
                         rx="2"
-                        fill="#ff5500"
-                        opacity={blueprintZone === 'intake' ? '1' : '0.72'}
+                        fill={blueprintZone === 'intake' ? '#ff5500' : '#636369'}
+                        className="transition-colors duration-200"
                       />
                     ))}
                   </g>
+
                   {/* Height Callout */}
-                  <line x1="194" y1="204" x2="194" y2="290" stroke={blueprintZone === 'height' ? '#ff5500' : '#71717a'} strokeWidth="1.25" />
-                  <line x1="184" y1="204" x2="198" y2="204" stroke={blueprintZone === 'height' ? '#ff5500' : '#71717a'} strokeWidth="1.25" />
-                  <line x1="184" y1="290" x2="198" y2="290" stroke={blueprintZone === 'height' ? '#ff5500' : '#71717a'} strokeWidth="1.25" />
-                  <text x="202" y="246" fontSize="11" fontWeight="600" fontFamily="JetBrains Mono, monospace" fill="#18181b">
+                  <line
+                    x1="194"
+                    y1="205"
+                    x2="194"
+                    y2="292"
+                    stroke={blueprintZone === 'height' ? '#ff5500' : '#a1a1aa'}
+                    strokeWidth={blueprintZone === 'height' ? '1.6' : '1.15'}
+                  />
+                  <line
+                    x1="184"
+                    y1="205"
+                    x2="198"
+                    y2="205"
+                    stroke={blueprintZone === 'height' ? '#ff5500' : '#a1a1aa'}
+                    strokeWidth={blueprintZone === 'height' ? '1.6' : '1.15'}
+                  />
+                  <line
+                    x1="184"
+                    y1="292"
+                    x2="198"
+                    y2="292"
+                    stroke={blueprintZone === 'height' ? '#ff5500' : '#a1a1aa'}
+                    strokeWidth={blueprintZone === 'height' ? '1.6' : '1.15'}
+                  />
+                  <text
+                    x="203"
+                    y="248"
+                    fontSize="11"
+                    fontWeight="600"
+                    fontFamily="JetBrains Mono, monospace"
+                    fill={blueprintZone === 'height' ? '#ff5500' : '#52525b'}
+                  >
                     95 mm
                   </text>
-                  <text x="202" y="259" fontSize="8" fontFamily="JetBrains Mono, monospace" fill="#71717a">
+                  <text
+                    x="203"
+                    y="261"
+                    fontSize="8"
+                    fontFamily="JetBrains Mono, monospace"
+                    fill={blueprintZone === 'height' ? '#ff5500' : '#a1a1aa'}
+                  >
                     HEIGHT
                   </text>
                 </svg>
@@ -379,13 +552,19 @@ export const CraftAndReserve: React.FC<CraftAndReserveProps> = ({
                         type="button"
                         onClick={() => selectBlueprintZone(z.id)}
                         aria-pressed={active}
-                        className={`rounded-lg px-2 py-2 sm:px-1.5 sm:py-1.5 font-mono text-[11px] sm:text-[10.5px] font-medium transition-colors whitespace-nowrap text-center cursor-pointer ${
+                        className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 sm:px-1.5 sm:py-1.5 font-mono text-[11px] sm:text-[10.5px] font-medium transition-colors whitespace-nowrap text-center cursor-pointer ${
                           active
                             ? 'bg-zinc-900 text-white'
                             : 'text-zinc-600 hover:text-zinc-950'
                         }`}
                       >
-                        {z.label}
+                        {active && (
+                          <span
+                            aria-hidden="true"
+                            className="h-1.5 w-1.5 rounded-full bg-[#ff5500] shrink-0"
+                          />
+                        )}
+                        <span>{z.label}</span>
                       </button>
                     );
                   })}
@@ -540,18 +719,50 @@ export const CraftAndReserve: React.FC<CraftAndReserveProps> = ({
             <div className="grid grid-cols-1 gap-8 sm:gap-10 lg:grid-cols-12">
               {/* Left: Spec Configurator Controls */}
               <div className="lg:col-span-7">
-                <div className="text-xs font-medium text-zinc-500">06. Hardware Reservation</div>
+                <div className="text-xs font-medium text-zinc-500">06. Configure &amp; Reserve</div>
                 <h2 className="mt-2 font-display text-3xl font-semibold tracking-tight text-zinc-950 text-balance">
-                  Configure your AEVORA build
+                  Configure &amp; Reserve AEVORA
                 </h2>
                 <p className="mt-2 text-sm text-zinc-600">
                   Includes Jetson Orin Nano 8GB, XIAO RP2040, ReSpeaker array, Noctua PWM fan, and 5000mAh 2S UPS pack pre-flashed with Ubuntu 22.04.
                 </p>
 
-                <div className="mt-7 space-y-6">
+                {/* 3-Step Configuration Progress Indicator */}
+                <ol
+                  aria-label="Configuration progress"
+                  data-testid="reserve-step-indicator"
+                  className="mt-5 grid grid-cols-3 gap-1.5 rounded-xl bg-[#f2f1ec] p-1 border border-zinc-900/8 font-mono text-[11px]"
+                >
+                  {(
+                    [
+                      { step: 1, label: '1. Finish' },
+                      { step: 2, label: '2. Storage & Suite' },
+                      { step: 3, label: '3. Review & Reserve' },
+                    ] as const
+                  ).map((item) => {
+                    const active = activeConfigStep === item.step;
+                    const completedStep = activeConfigStep > item.step || Boolean(confirmedOrder);
+                    return (
+                      <li
+                        key={item.step}
+                        className={`rounded-lg px-2 py-1.5 text-center transition-colors ${
+                          active
+                            ? 'bg-zinc-950 font-semibold text-white'
+                            : completedStep
+                            ? 'bg-white font-medium text-zinc-900'
+                            : 'text-zinc-500'
+                        }`}
+                      >
+                        <span className="truncate block">{item.label}</span>
+                      </li>
+                    );
+                  })}
+                </ol>
+
+                <div className="mt-6 space-y-6">
                   {/* Finish */}
                   <div>
-                    <div className="text-xs font-semibold text-zinc-900">Enclosure Finish</div>
+                    <div className="text-xs font-semibold text-zinc-900">1. Enclosure Finish</div>
                     <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
                       {FINISH_OPTIONS.map((opt) => {
                         const active = selectedFinish === opt.id;
@@ -561,6 +772,7 @@ export const CraftAndReserve: React.FC<CraftAndReserveProps> = ({
                             type="button"
                             onClick={() => {
                               playDetentClick(soundEnabled, 1080);
+                              setActiveConfigStep(1);
                               onSelectFinish(opt.id);
                             }}
                             aria-pressed={active}
@@ -592,7 +804,7 @@ export const CraftAndReserve: React.FC<CraftAndReserveProps> = ({
 
                   {/* NVMe Storage + Live Local LLM Headroom Estimator */}
                   <div>
-                    <div className="text-xs font-semibold text-zinc-900">Samsung M.2 NVMe Storage</div>
+                    <div className="text-xs font-semibold text-zinc-900">2. Samsung M.2 NVMe Storage</div>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {STORAGE_OPTIONS.map((opt) => {
                         const active = storage === opt.id;
@@ -602,6 +814,7 @@ export const CraftAndReserve: React.FC<CraftAndReserveProps> = ({
                             type="button"
                             onClick={() => {
                               playDetentClick(soundEnabled, 1140);
+                              setActiveConfigStep(2);
                               setStorage(opt.id);
                             }}
                             aria-pressed={active}
@@ -636,6 +849,7 @@ export const CraftAndReserve: React.FC<CraftAndReserveProps> = ({
                             type="button"
                             onClick={() => {
                               playDetentClick(soundEnabled, 1200);
+                              setActiveConfigStep(2);
                               setBundle(opt.id);
                             }}
                             aria-pressed={active}
@@ -783,10 +997,43 @@ export const CraftAndReserve: React.FC<CraftAndReserveProps> = ({
                       </div>
                     </div>
 
-                    <div className="space-y-1 text-xs text-zinc-600">
-                      <div className="font-medium text-zinc-900">{summary.finishLabel}</div>
-                      <div>{summary.storageLabel}</div>
-                      <div>{summary.bundleLabel}</div>
+                    {/* Always-Visible Itemized Build Summary & Running Math */}
+                    <div
+                      data-testid="live-build-summary"
+                      className="rounded-xl bg-white p-3.5 border border-zinc-900/8 text-xs"
+                    >
+                      <div className="font-semibold text-zinc-950">Live Build Summary</div>
+                      <dl className="mt-2 space-y-1.5 text-zinc-600">
+                        <div className="flex items-baseline justify-between gap-3">
+                          <dt className="min-w-0 truncate">
+                            Base Unit (100mm · Jetson Orin Nano · 2.4&quot; IPS)
+                          </dt>
+                          <dd className="font-mono tabular-nums font-medium text-zinc-900 shrink-0">
+                            ${summary.basePrice}
+                          </dd>
+                        </div>
+                        <div className="flex items-baseline justify-between gap-3">
+                          <dt className="min-w-0 truncate">{summary.finishLabel}</dt>
+                          <dd className="font-mono tabular-nums font-medium text-zinc-900 shrink-0">
+                            +${summary.finishDelta}
+                          </dd>
+                        </div>
+                        <div className="flex items-baseline justify-between gap-3">
+                          <dt className="min-w-0 truncate">{summary.storageLabel}</dt>
+                          <dd className="font-mono tabular-nums font-medium text-zinc-900 shrink-0">
+                            +${summary.storageDelta}
+                          </dd>
+                        </div>
+                        <div className="flex items-baseline justify-between gap-3">
+                          <dt className="min-w-0 truncate">{summary.bundleLabel}</dt>
+                          <dd className="font-mono tabular-nums font-medium text-zinc-900 shrink-0">
+                            +${summary.bundleDelta}
+                          </dd>
+                        </div>
+                      </dl>
+                      <div className="mt-2.5 border-t border-zinc-900/8 pt-2 font-mono text-[11px] font-semibold text-zinc-950 tabular-nums">
+                        Total: {summary.breakdownFormula}
+                      </div>
                     </div>
 
                     <div className="space-y-3.5">
@@ -798,6 +1045,7 @@ export const CraftAndReserve: React.FC<CraftAndReserveProps> = ({
                           id="res-name"
                           type="text"
                           value={fullName}
+                          onFocus={() => setActiveConfigStep(3)}
                           onChange={(e) => setFullName(e.target.value)}
                           placeholder="Alex Rivera"
                           className="mt-1 w-full rounded-xl border border-zinc-900/15 bg-white px-3.5 py-2.5 text-sm text-zinc-950 placeholder:text-zinc-400 focus:border-zinc-950 focus:outline-none"

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { MotionConfig, motion, useScroll, useSpring } from 'motion/react';
 import { TopBar } from './components/TopBar';
 import { HeroSection } from './components/HeroSection';
+import { TwoWaysSection } from './components/TwoWaysSection';
 import { TactilePrivacyTwin } from './components/TactilePrivacyTwin';
 import { ExplodedExplorer } from './components/ExplodedExplorer';
 import { AutomationWorkbench } from './components/AutomationWorkbench';
@@ -103,6 +104,11 @@ export default function App() {
             onSelectFinish={handleFinishChange}
             onConfigure={() => scrollToSection('reserve')}
             onExploreCore={() => scrollToSection('exploded-core')}
+          />
+          <TwoWaysSection
+            soundEnabled={soundEnabled}
+            onExploreWorkbench={() => scrollToSection('automation')}
+            onInspectPrivacy={() => scrollToSection('privacy-twin')}
           />
           <TactilePrivacyTwin
             hardwareState={hardwareState}

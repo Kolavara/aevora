@@ -265,33 +265,38 @@ export interface ComparisonRow {
 
 export const LOCAL_VS_CLOUD_ROWS: ComparisonRow[] = [
   {
-    criterion: 'Microphone Privacy',
-    aevora: 'SPST hardware open-circuit severs PCB mic rail',
-    cloudDevice: 'Software mute flag controlled by remote firmware',
+    criterion: 'Audio Privacy',
+    aevora: 'Stays on-device with SPST hardware mic kill switch severing the PCB rail',
+    cloudDevice: 'Audio streamed to remote cloud servers; mute controlled by software flag',
+  },
+  {
+    criterion: 'Intent Routing Speed',
+    aevora: '<100 ms local intent routing, zero cloud round-trip (34.6 tok/s on-device)',
+    cloudDevice: '200–500 ms+ network upload & cloud inference queue dependency',
   },
   {
     criterion: 'Host PC Automation',
-    aevora: 'Native USB-C HID (zero host software or admin rights)',
-    cloudDevice: 'Requires screen-recording daemon or cloud OAuth',
+    aevora: 'Native USB-C HID via XIAO RP2040 (zero host software or admin rights)',
+    cloudDevice: 'Requires screen-recording daemon, desktop agent, or cloud OAuth',
   },
   {
     criterion: 'Model Freedom & Routing',
-    aevora: 'On-device Orin, offline LAN GPU server (Ollama/vLLM), or BYOK cloud API',
-    cloudDevice: 'Locked to one vendor’s proprietary cloud endpoint',
+    aevora: 'On-device Orin, offline LAN GPU rig (Ollama / vLLM), or opt-in BYOK cloud API',
+    cloudDevice: 'Locked to one vendor’s proprietary cloud endpoint and rate limits',
   },
   {
-    criterion: 'Recurring Cost',
-    aevora: '$0 / month required — own local weights or bring your own API key',
-    cloudDevice: '$20–$30 / month mandatory subscription + token caps',
+    criterion: 'Offline Operation',
+    aevora: 'Full local execution + LAN control + cordless 2S 21700 UPS battery',
+    cloudDevice: 'Unusable without live vendor internet connection',
   },
   {
-    criterion: 'Offline & Air-Gapped Use',
-    aevora: '100% functional offline (on-device or LAN peer) + 2S UPS battery',
-    cloudDevice: 'Unusable without live vendor cloud connection',
+    criterion: 'Data & Credentials',
+    aevora: 'Encrypted locally on user-serviceable M.2 NVMe SSD',
+    cloudDevice: 'Conversation logs & credentials stored on vendor cloud servers',
   },
   {
-    criterion: 'Voice-to-First-Token',
-    aevora: '~140 ms local Whisper + 34.6 tok/s local (or LAN GPU / BYOK frontier)',
-    cloudDevice: '600–1,400 ms network upload & cloud queue jitter',
+    criterion: 'Ownership Model',
+    aevora: 'One-time hardware purchase ($0/mo required), BYOK cloud optional',
+    cloudDevice: '$20–$30/month recurring subscription & vendor lock-in',
   },
 ];

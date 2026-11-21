@@ -60,7 +60,7 @@ export const TechSpecsSection: React.FC<TechSpecsSectionProps> = ({
                   <div className="mt-0.5 font-medium">{row.aevora}</div>
                 </div>
                 <div className="px-1 text-xs leading-relaxed text-zinc-500">
-                  <span className="font-medium text-zinc-600">Cloud companion: </span>
+                  <span className="font-medium text-zinc-600">Cloud-only companion: </span>
                   {row.cloudDevice}
                 </div>
               </div>
@@ -77,7 +77,7 @@ export const TechSpecsSection: React.FC<TechSpecsSectionProps> = ({
                     AEVORA (Local-First · LAN · BYOK)
                   </th>
                   <th className="py-4 pl-4 pr-6 font-medium text-zinc-500 w-[36%]">
-                    Typical Cloud AI Companion
+                    Cloud-Only AI Companions
                   </th>
                 </tr>
               </thead>
