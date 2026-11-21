@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { toCreasedNormals } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { FAN_MOUNT_ANGLE } from '../../utils/aevoraEngine';
 import type { AevoraMaterialSet } from './aevoraMaterials';
 
@@ -34,6 +35,21 @@ export function buildAevoraAssembly(mats: AevoraMaterialSet): AevoraAssemblyHand
   const track = <T extends THREE.BufferGeometry>(geo: T): T => {
     geometries.push(geo);
     return geo;
+  };
+
+  // High-segment LatheGeometry with creased profile edges: keeps 360° circumference silky-smooth
+  // while splitting normals cleanly across sharp 90°/chamfer corners so flat rings never band or facet.
+  const createSmoothLathe = (
+    profile: THREE.Vector2[],
+    segments = 128,
+    phiStart = 0,
+    phiLength = Math.PI * 2,
+    creaseAngle = Math.PI * 0.24
+  ): THREE.BufferGeometry => {
+    const raw = new THREE.LatheGeometry(profile, segments, phiStart, phiLength);
+    const smooth = toCreasedNormals(raw, creaseAngle);
+    raw.dispose();
+    return track(smooth);
   };
 
   const root = new THREE.Group();
@@ -76,14 +92,14 @@ export function buildAevoraAssembly(mats: AevoraMaterialSet): AevoraAssemblyHand
     new THREE.Vector2(0.734, 0.072),
     new THREE.Vector2(0.0, 0.072),
   ];
-  const crownGeo = track(new THREE.LatheGeometry(crownProfile, 96));
+  const crownGeo = createSmoothLathe(crownProfile, 128);
   const crownMesh = new THREE.Mesh(crownGeo, mats.displayPuckBezel);
   crownMesh.castShadow = true;
   crownMesh.receiveShadow = true;
   displayGroup.add(crownMesh);
 
   // Machined metallic micro-chamfer rim framing the top OLED glass face
-  const trimRingGeo = track(new THREE.TorusGeometry(0.752, 0.0085, 14, 96));
+  const trimRingGeo = track(new THREE.TorusGeometry(0.752, 0.0085, 16, 128));
   trimRingGeo.rotateX(Math.PI / 2);
   const trimRing = new THREE.Mesh(trimRingGeo, mats.aluminumTrim);
   trimRing.position.y = 0.096;
@@ -230,23 +246,25 @@ export function buildAevoraAssembly(mats: AevoraMaterialSet): AevoraAssemblyHand
     new THREE.Vector2(1.045, -0.12),
     new THREE.Vector2(1.045, 0.205),
     new THREE.Vector2(1.015, 0.232),
-    new THREE.Vector2(0.945, 0.232),
+    new THREE.Vector2(0.949, 0.232),
+    new THREE.Vector2(0.943, 0.226),
     new THREE.Vector2(0.940, 0.195),
     new THREE.Vector2(0.900, 0.195),
-    new THREE.Vector2(0.895, 0.232),
+    new THREE.Vector2(0.897, 0.226),
+    new THREE.Vector2(0.891, 0.232),
     new THREE.Vector2(0.775, 0.232),
     new THREE.Vector2(0.762, 0.218),
     new THREE.Vector2(0.762, 0.140),
     new THREE.Vector2(0.74, -0.12),
   ];
-  const collarGeo = track(new THREE.LatheGeometry(collarProfile, 72));
+  const collarGeo = createSmoothLathe(collarProfile, 128);
   const collarMesh = new THREE.Mesh(collarGeo, mats.aluminumChassis);
   collarMesh.castShadow = true;
   collarMesh.receiveShadow = true;
   switchesGroup.add(collarMesh);
 
   // Subtle machined inner chamfer highlight around inner aluminum ring surrounding elevated puck
-  const innerDeckChamferGeo = track(new THREE.TorusGeometry(0.892, 0.006, 10, 72));
+  const innerDeckChamferGeo = track(new THREE.TorusGeometry(0.892, 0.0055, 14, 128));
   innerDeckChamferGeo.rotateX(Math.PI / 2);
   const innerDeckChamfer = new THREE.Mesh(innerDeckChamferGeo, mats.aluminumTrim);
   innerDeckChamfer.position.y = 0.232;
@@ -256,15 +274,17 @@ export function buildAevoraAssembly(mats: AevoraMaterialSet): AevoraAssemblyHand
   const ledGuideProfile = [
     new THREE.Vector2(0.898, 0.194),
     new THREE.Vector2(0.942, 0.194),
-    new THREE.Vector2(0.942, 0.228),
-    new THREE.Vector2(0.920, 0.231),
-    new THREE.Vector2(0.898, 0.228),
+    new THREE.Vector2(0.942, 0.225),
+    new THREE.Vector2(0.935, 0.231),
+    new THREE.Vector2(0.920, 0.233),
+    new THREE.Vector2(0.905, 0.231),
+    new THREE.Vector2(0.898, 0.225),
   ];
-  const ledGuideGeo = track(new THREE.LatheGeometry(ledGuideProfile, 72));
+  const ledGuideGeo = createSmoothLathe(ledGuideProfile, 128);
   const ledRingMesh = new THREE.Mesh(ledGuideGeo, mats.ledRing);
   switchesGroup.add(ledRingMesh);
 
-  const ledOuterEdgeGeo = track(new THREE.TorusGeometry(0.920, 0.015, 12, 72));
+  const ledOuterEdgeGeo = track(new THREE.TorusGeometry(0.920, 0.015, 18, 128));
   ledOuterEdgeGeo.rotateX(Math.PI / 2);
   const ledOuterEdge = new THREE.Mesh(ledOuterEdgeGeo, mats.ledRing);
   ledOuterEdge.position.y = 0.221;
@@ -630,7 +650,7 @@ export function buildAevoraAssembly(mats: AevoraMaterialSet): AevoraAssemblyHand
     new THREE.Vector2(1.045, 0.145),
     new THREE.Vector2(0.89, 0.145),
   ];
-  const shellGeo = track(new THREE.LatheGeometry(shellProfile, 52, 1.65, Math.PI * 1.32));
+  const shellGeo = createSmoothLathe(shellProfile, 96, 1.65, Math.PI * 1.32);
   const shellMesh = new THREE.Mesh(shellGeo, mats.aluminumChassis);
   shellMesh.castShadow = true;
   shellMesh.receiveShadow = true;
@@ -642,7 +662,7 @@ export function buildAevoraAssembly(mats: AevoraMaterialSet): AevoraAssemblyHand
     new THREE.Vector2(0.888, 0.12),
     new THREE.Vector2(0.835, 0.12),
   ];
-  const foamGeo = track(new THREE.LatheGeometry(foamProfile, 44, 1.72, Math.PI * 1.25));
+  const foamGeo = createSmoothLathe(foamProfile, 96, 1.72, Math.PI * 1.25);
   const foamMesh = new THREE.Mesh(foamGeo, mats.acousticFoam);
   acousticGroup.add(foamMesh);
 
@@ -807,7 +827,7 @@ export function buildAevoraAssembly(mats: AevoraMaterialSet): AevoraAssemblyHand
     new THREE.Vector2(0.94, -0.11),
     new THREE.Vector2(0.0, -0.11),
   ];
-  const baseCupGeo = track(new THREE.LatheGeometry(baseProfile, 60));
+  const baseCupGeo = createSmoothLathe(baseProfile, 128);
   const baseCup = new THREE.Mesh(baseCupGeo, mats.aluminumChassis);
   baseCup.castShadow = true;
   baseCup.receiveShadow = true;

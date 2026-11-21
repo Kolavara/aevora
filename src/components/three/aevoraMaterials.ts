@@ -18,24 +18,29 @@ export function detectSoftwareWebGl(): boolean {
 
 export function createBrushedMetalBumpTexture(maxAnisotropy: number): THREE.CanvasTexture {
   const canvas = document.createElement('canvas');
-  canvas.width = 512;
-  canvas.height = 512;
+  canvas.width = 256;
+  canvas.height = 256;
   const ctx = canvas.getContext('2d')!;
+  const img = ctx.createImageData(256, 256);
+  const data = img.data;
 
-  ctx.fillStyle = '#808080';
-  ctx.fillRect(0, 0, 512, 512);
-
-  for (let y = 0; y < 512; y += 1) {
-    const wave = Math.sin(y * 0.48) * 15 + Math.sin(y * 2.1) * 11;
-    const val = Math.max(88, Math.min(172, Math.round(128 + wave)));
-    ctx.fillStyle = `rgb(${val},${val},${val})`;
-    ctx.fillRect(0, y, 512, 1);
+  // Fine isotropic bead-blasted anodized 6061 aluminum micro-grain (deterministic LCG noise)
+  let seed = 133791;
+  for (let i = 0; i < 256 * 256; i += 1) {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    const grain = 122 + ((seed >>> 24) & 15); // subtle 122..137 micro-satin variance
+    const idx = i * 4;
+    data[idx] = grain;
+    data[idx + 1] = grain;
+    data[idx + 2] = grain;
+    data[idx + 3] = 255;
   }
+  ctx.putImageData(img, 0, 0);
 
   const tex = new THREE.CanvasTexture(canvas);
   tex.wrapS = THREE.RepeatWrapping;
   tex.wrapT = THREE.RepeatWrapping;
-  tex.repeat.set(3, 1);
+  tex.repeat.set(6, 6);
   tex.colorSpace = THREE.NoColorSpace;
   tex.anisotropy = Math.min(8, maxAnisotropy);
   tex.needsUpdate = true;
@@ -507,39 +512,38 @@ export function createAevoraMaterialSet(
 
   const aluminumChassis = new THREE.MeshPhysicalMaterial({
     color: isCharcoal ? 0x262930 : 0xd7d6d0,
-    metalness: 0.91,
-    roughness: isCharcoal ? 0.32 : 0.23,
+    metalness: 0.88,
+    roughness: isCharcoal ? 0.34 : 0.27,
     bumpMap: brushedBump,
-    bumpScale: 0.0045,
-    anisotropy: 0.85,
-    clearcoat: 0.18,
-    clearcoatRoughness: 0.32,
+    bumpScale: 0.0012,
+    clearcoat: 0.14,
+    clearcoatRoughness: 0.34,
   });
 
   const aluminumTrim = new THREE.MeshPhysicalMaterial({
     color: isCharcoal ? 0x414652 : 0xeeeee8,
-    metalness: 0.96,
-    roughness: 0.13,
-    clearcoat: 0.45,
-    clearcoatRoughness: 0.16,
+    metalness: 0.94,
+    roughness: 0.16,
+    clearcoat: 0.4,
+    clearcoatRoughness: 0.18,
   });
 
   const displayPuckBezel = new THREE.MeshPhysicalMaterial({
     color: isCharcoal ? 0x16181e : 0x262932,
-    metalness: 0.88,
-    roughness: 0.22,
+    metalness: 0.86,
+    roughness: 0.24,
     bumpMap: brushedBump,
-    bumpScale: 0.0025,
-    clearcoat: 0.5,
-    clearcoatRoughness: 0.14,
+    bumpScale: 0.001,
+    clearcoat: 0.45,
+    clearcoatRoughness: 0.16,
   });
 
   const ledRing = new THREE.MeshStandardMaterial({
-    color: ringAccent === 'amber' ? 0xff4200 : 0x0284c7,
-    emissive: ringAccent === 'amber' ? 0xff4500 : 0x0ea5e9,
+    color: ringAccent === 'amber' ? 0xff4a00 : 0x0284c7,
+    emissive: ringAccent === 'amber' ? 0xff4d00 : 0x0ea5e9,
     emissiveIntensity: ringAccent === 'amber' ? 1.55 : 1.75,
-    roughness: 0.22,
-    metalness: 0.05,
+    roughness: 0.16,
+    metalness: 0.02,
   });
 
   // Ultra-low-reflectance AR sapphire glass edge catchlight — zero milky ceiling wash
